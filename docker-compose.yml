@@ -1,0 +1,19 @@
+services:
+  server:
+    build:
+      context: server
+      dockerfile: Dockerfile
+    image: cupid/server:local
+    container_name: cupid-server
+    env_file:
+      - server/.env
+    ports:
+      - "8080:8080"
+    networks:
+      - appnet
+
+networks:
+  appnet:
+    driver: bridge
+
+
