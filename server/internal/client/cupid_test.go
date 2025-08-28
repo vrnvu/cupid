@@ -18,13 +18,15 @@ type mockCupidAPI struct {
 	headers    map[string]string
 }
 
-func (m *mockCupidAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (m *mockCupidAPI) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	for k, v := range m.headers {
 		w.Header().Set(k, v)
 	}
 	w.WriteHeader(m.statusCode)
 	if m.body != "" {
-		w.Write([]byte(m.body))
+		if _, err := w.Write([]byte(m.body)); err != nil {
+			return
+		}
 	}
 }
 
@@ -42,7 +44,9 @@ func TestClient_Do_StatusMapping(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			mock := &mockCupidAPI{
 				statusCode: tc.statusCode,
 				body:       tc.body,
