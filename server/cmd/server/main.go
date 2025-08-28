@@ -14,11 +14,14 @@ import (
 )
 
 func main() {
-	otelShutdown, err := telemetry.ConfigureOpenTelemetry()
-	if err != nil {
-		log.Fatalf("failed to configure OpenTelemetry: %v", err)
+	// Enable telemetry only if explicitly opted in
+	if os.Getenv("ENABLE_TELEMETRY") == "1" {
+		otelShutdown, err := telemetry.ConfigureOpenTelemetry()
+		if err != nil {
+			log.Fatalf("failed to configure OpenTelemetry: %v", err)
+		}
+		defer otelShutdown()
 	}
-	defer otelShutdown()
 
 	router := http.NewServeMux()
 	router.Handle("/health", telemetry.NewHandler(handlers.NewServerHandler("health"), "ServerHandlerHealth"))
