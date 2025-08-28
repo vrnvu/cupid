@@ -27,8 +27,9 @@ func main() {
 	router.Handle("/baz", telemetry.NewHandler(handlers.NewServerHandler("baz"), "ServerHandlerBaz"))
 
 	server := &http.Server{
-		Addr:    ":8080",
-		Handler: router,
+		Addr:        ":8080",
+		Handler:     router,
+		ReadTimeout: 5 * time.Second,
 	}
 
 	go func() {
