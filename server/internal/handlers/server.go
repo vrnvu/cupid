@@ -19,7 +19,7 @@ func serverHandler(w http.ResponseWriter, r *http.Request, path string) {
 		return
 	}
 
-	if path != "foo" && path != "bar" && path != "baz" {
+	if path != "health" && path != "foo" && path != "bar" && path != "baz" {
 		w.WriteHeader(http.StatusNotFound)
 		w.Write([]byte(fmt.Sprintf("Not Found: %s", path)))
 		return

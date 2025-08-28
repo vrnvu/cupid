@@ -21,6 +21,7 @@ func main() {
 	defer otelShutdown()
 
 	router := http.NewServeMux()
+	router.Handle("/health", telemetry.NewHandler(handlers.NewServerHandler("health"), "ServerHandlerHealth"))
 	router.Handle("/foo", telemetry.NewHandler(handlers.NewServerHandler("foo"), "ServerHandlerFoo"))
 	router.Handle("/bar", telemetry.NewHandler(handlers.NewServerHandler("bar"), "ServerHandlerBar"))
 	router.Handle("/baz", telemetry.NewHandler(handlers.NewServerHandler("baz"), "ServerHandlerBaz"))

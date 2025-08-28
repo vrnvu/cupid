@@ -18,6 +18,13 @@ func TestServerHandler(t *testing.T) {
 		wantStatus int
 	}{
 		{
+			name:       "ok health",
+			path:       "health",
+			route:      "/health",
+			userID:     "123",
+			wantStatus: http.StatusOK,
+		},
+		{
 			name:       "ok foo",
 			path:       "foo",
 			route:      "/foo",

@@ -1,0 +1,33 @@
+test:
+	@cd server && go test \
+		-shuffle=on \
+		-count=1 \
+		-short \
+		-timeout=5m \
+		./... \
+		-coverprofile=../coverage.out
+.PHONY: test
+
+# lint uses the same linter as CI and tries to report the same results running
+# locally. There is a chance that CI detects linter errors that are not found
+# locally, but it should be rare.
+lint:
+	@cd server && go install github.com/golangci/golangci-lint/cmd/golangci-lint
+	@cd server && golangci-lint run --config ../.golangci.yaml
+.PHONY: lint
+
+diff-check:
+	@FINDINGS="$$(git status -s -uall)" ; \
+		if [ -n "$${FINDINGS}" ]; then \
+			echo "Changed files:\n\n" ; \
+			echo "$${FINDINGS}\n\n" ; \
+			echo "Diffs:\n\n" ; \
+			git diff ; \
+			git diff --cached ; \
+			exit 1 ; \
+		fi
+.PHONY: diff-check
+
+test-coverage:
+	@go tool cover -func=./coverage.out
+.PHONY: test-coverage
