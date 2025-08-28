@@ -21,9 +21,30 @@ jobs:
               uses: actions/checkout@v4
 
             - name: Set up Go
+              id: setup-go
               uses: actions/setup-go@v5
               with:
                 go-version-file: server/go.mod
+                cache: true
+                cache-dependency-path: server/go.sum
+
+            - name: Capture Go caches paths
+              id: go-cache-paths
+              working-directory: server
+              run: |
+                echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_ENV
+                echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_ENV
+
+            - name: Cache Go modules and build cache
+              uses: actions/cache@v4
+              with:
+                path: |
+                  ${{ env.GOMODCACHE }}
+                  ${{ env.GOCACHE }}
+                key: ${{ runner.os }}-go-${{ hashFiles('server/go.sum') }}-${{ steps.setup-go.outputs.go-version }}
+                restore-keys: |
+                  ${{ runner.os }}-go-${{ hashFiles('server/go.sum') }}-
+                  ${{ runner.os }}-go-
 
             - name: Download modules
               working-directory: server
@@ -49,12 +70,31 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@v4
 
-            - uses: reviewdog/action-setup@v1
-
             - name: Set up Go
+              id: setup-go
               uses: actions/setup-go@v5
               with:
                 go-version-file: server/go.mod
+                cache: true
+                cache-dependency-path: server/go.sum
+
+            - name: Capture Go caches paths
+              id: go-cache-paths
+              working-directory: server
+              run: |
+                echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_ENV
+                echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_ENV
+
+            - name: Cache Go modules and build cache
+              uses: actions/cache@v4
+              with:
+                path: |
+                  ${{ env.GOMODCACHE }}
+                  ${{ env.GOCACHE }}
+                key: ${{ runner.os }}-go-${{ hashFiles('server/go.sum') }}-${{ steps.setup-go.outputs.go-version }}
+                restore-keys: |
+                  ${{ runner.os }}-go-${{ hashFiles('server/go.sum') }}-
+                  ${{ runner.os }}-go-
 
             - name: Download modules
               working-directory: server
@@ -67,9 +107,12 @@ jobs:
                 set +o pipefail
                 make diff-check
 
-            - name: go-lint
-              shell: bash
-              run: make lint
+            - name: golangci-lint
+              uses: golangci/golangci-lint-action@v6
+              with:
+                version: latest
+                working-directory: server
+                args: --config ../.golangci.yaml
 
     integration-test:
         name: integration-test
@@ -79,9 +122,30 @@ jobs:
               uses: actions/checkout@v4
 
             - name: Set up Go
+              id: setup-go
               uses: actions/setup-go@v5
               with:
                 go-version-file: server/go.mod
+                cache: true
+                cache-dependency-path: server/go.sum
+
+            - name: Capture Go caches paths
+              id: go-cache-paths
+              working-directory: server
+              run: |
+                echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_ENV
+                echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_ENV
+
+            - name: Cache Go modules and build cache
+              uses: actions/cache@v4
+              with:
+                path: |
+                  ${{ env.GOMODCACHE }}
+                  ${{ env.GOCACHE }}
+                key: ${{ runner.os }}-go-${{ hashFiles('server/go.sum') }}-${{ steps.setup-go.outputs.go-version }}
+                restore-keys: |
+                  ${{ runner.os }}-go-${{ hashFiles('server/go.sum') }}-
+                  ${{ runner.os }}-go-
 
             - name: Download modules
               working-directory: server
