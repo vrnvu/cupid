@@ -1,0 +1,16 @@
+{
+    "request": {
+        "method": "GET",
+        "urlPathPattern": "/v3.0/property/server-.*"
+    },
+    "response": {
+        "status": 500,
+        "headers": {
+            "Content-Type": "application/json",
+            "X-Request-Id": "wm-500"
+        },
+        "jsonBody": {
+            "error": "server"
+        }
+    }
+}

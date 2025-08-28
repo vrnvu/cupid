@@ -29,6 +29,7 @@ func (m *mockCupidAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func TestClient_Do_StatusMapping(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		statusCode int
@@ -36,8 +37,8 @@ func TestClient_Do_StatusMapping(t *testing.T) {
 		expectErr  error
 	}{
 		{"ok_200", 200, `{"ok":true}`, nil},
-		{"client_400", 400, `{"error":"client"}`, &ClientError{}},
-		{"server_500", 500, `{"error":"server"}`, &ServerError{}},
+		{"client_400", 400, `{"error":"client"}`, &Error{}},
+		{"server_500", 500, `{"error":"server"}`, &Error{}},
 	}
 
 	for _, tc := range tests {
@@ -58,6 +59,7 @@ func TestClient_Do_StatusMapping(t *testing.T) {
 
 			respBody, resp, err := c.Do(context.Background(), http.MethodGet, "/path", nil, nil)
 			if tc.expectErr == nil {
+				defer resp.Body.Close()
 				assert.NoError(t, err)
 				if assert.NotNil(t, resp) {
 					assert.Equal(t, tc.statusCode, resp.StatusCode)
@@ -65,22 +67,14 @@ func TestClient_Do_StatusMapping(t *testing.T) {
 				assert.Equal(t, strings.TrimSpace(tc.body), strings.TrimSpace(string(respBody)))
 			} else {
 				assert.Error(t, err)
-				if tc.statusCode >= 400 && tc.statusCode <= 499 {
-					var ce *ClientError
-					assert.True(t, errors.As(err, &ce), "expected ClientError, got %T: %v", err, err)
+				if tc.statusCode >= 400 && tc.statusCode <= 599 {
+					var ce *Error
+					assert.True(t, errors.As(err, &ce), "expected client.Error, got %T: %v", err, err)
 					if ce != nil {
 						assert.Equal(t, tc.statusCode, ce.StatusCode)
 						assert.Equal(t, "req-123", ce.RequestID)
 					}
-				} else if tc.statusCode >= 500 && tc.statusCode <= 599 {
-					var se *ServerError
-					assert.True(t, errors.As(err, &se), "expected ServerError, got %T: %v", err, err)
-					if se != nil {
-						assert.Equal(t, tc.statusCode, se.StatusCode)
-						assert.Equal(t, "req-123", se.RequestID)
-					}
 				} else {
-					// Unexpected classification in test table
 					assert.Failf(t, "invalid test status range", "status %d not in 4xx/5xx", tc.statusCode)
 				}
 			}

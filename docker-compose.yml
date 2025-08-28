@@ -12,6 +12,16 @@ services:
     networks:
       - appnet
 
+  wiremock:
+    image: wiremock/wiremock:3.6.0
+    container_name: cupid-wiremock
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./wiremock:/home/wiremock
+    networks:
+      - appnet
+
 networks:
   appnet:
     driver: bridge

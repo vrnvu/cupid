@@ -75,24 +75,14 @@ func New(baseURL string, opts ...Option) (*Client, error) {
 	return c, nil
 }
 
-// ClientError represents 4xx HTTP responses.
-type ClientError struct {
+// Error represents 4xx or 5xx HTTP responses.
+type Error struct {
 	StatusCode int
 	RequestID  string
 }
 
-func (e *ClientError) Error() string {
-	return fmt.Sprintf("client error: status=%d request_id=%s", e.StatusCode, e.RequestID)
-}
-
-// ServerError represents 5xx HTTP responses.
-type ServerError struct {
-	StatusCode int
-	RequestID  string
-}
-
-func (e *ServerError) Error() string {
-	return fmt.Sprintf("server error: status=%d request_id=%s", e.StatusCode, e.RequestID)
+func (e *Error) Error() string {
+	return fmt.Sprintf("error: status=%d request_id=%s", e.StatusCode, e.RequestID)
 }
 
 // Do issues an HTTP request and returns the response body for 2xx codes.
@@ -143,10 +133,10 @@ func (c *Client) Do(ctx context.Context, method, path string, body io.Reader, he
 		return respBody, resp, nil
 	}
 	if resp.StatusCode >= 400 && resp.StatusCode <= 499 {
-		return nil, resp, &ClientError{StatusCode: resp.StatusCode, RequestID: requestID}
+		return nil, resp, &Error{StatusCode: resp.StatusCode, RequestID: requestID}
 	}
 	if resp.StatusCode >= 500 && resp.StatusCode <= 599 {
-		return nil, resp, &ServerError{StatusCode: resp.StatusCode, RequestID: requestID}
+		return nil, resp, &Error{StatusCode: resp.StatusCode, RequestID: requestID}
 	}
 	return nil, resp, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 }

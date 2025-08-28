@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	cupid_sandbox_api, ok := os.LookupEnv("CUPID_SANDBOX_API")
+	cupidSandboxAPI, ok := os.LookupEnv("CUPID_SANDBOX_API")
 	if !ok {
 		panic("CUPID_SANDBOX_API env var was not set")
 	}
@@ -27,7 +27,17 @@ func main() {
 		defer otelShutdown()
 	}
 
-	c, err := client.New("https://content-api.cupid.travel",
+	baseURL := os.Getenv("CUPID_BASE_URL")
+	if baseURL == "" {
+		baseURL = "https://content-api.cupid.travel"
+	}
+
+	hotelId := os.Getenv("HOTEL_ID")
+	if hotelId == "" {
+		hotelId = "1641879"
+	}
+
+	c, err := client.New(baseURL,
 		client.WithTimeout(5*time.Second),
 		client.WithUserAgent("cupid-data-sync/1.0"),
 		client.WithConnectionClose(),
@@ -38,9 +48,7 @@ func main() {
 
 	headers := make(http.Header)
 	headers.Add("accept", "application/json")
-	headers.Add("x-api-key", cupid_sandbox_api)
-
-	hotelId := "1641879"
+	headers.Add("x-api-key", cupidSandboxAPI)
 
 	path := fmt.Sprintf("/v3.0/property/%s", hotelId)
 
@@ -51,5 +59,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("request failed: %v", err)
 	}
+	defer resp.Body.Close()
 	log.Printf("status=%d body=%s", resp.StatusCode, string(body))
 }

@@ -1,0 +1,16 @@
+{
+    "request": {
+        "method": "GET",
+        "urlPathPattern": "/v3.0/property/bad-.*"
+    },
+    "response": {
+        "status": 400,
+        "headers": {
+            "Content-Type": "application/json",
+            "X-Request-Id": "wm-400"
+        },
+        "jsonBody": {
+            "error": "client"
+        }
+    }
+}
