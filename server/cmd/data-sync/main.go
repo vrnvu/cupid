@@ -32,9 +32,9 @@ func main() {
 		baseURL = "https://content-api.cupid.travel"
 	}
 
-	hotelId := os.Getenv("HOTEL_ID")
-	if hotelId == "" {
-		hotelId = "1641879"
+	hotelID := os.Getenv("HOTEL_ID")
+	if hotelID == "" {
+		hotelID = "1641879"
 	}
 
 	c, err := client.New(baseURL,
@@ -50,7 +50,7 @@ func main() {
 	headers.Add("accept", "application/json")
 	headers.Add("x-api-key", cupidSandboxAPI)
 
-	path := fmt.Sprintf("/v3.0/property/%s", hotelId)
+	path := fmt.Sprintf("/v3.0/property/%s", hotelID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
