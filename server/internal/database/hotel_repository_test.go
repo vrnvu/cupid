@@ -146,27 +146,26 @@ func dummyProperty(hotelID int, cupidID int, hotelName string) *client.Property 
 
 func TestHotelRepository_StoreProperty(t *testing.T) {
 	t.Parallel()
-	config := Config{
-		Host:     "localhost",
-		Port:     5432,
-		User:     "cupid",
-		Password: "cupid123",
-		DBName:   "cupid",
-		SSLMode:  "disable",
-	}
-	db, err := NewConnection(config)
-	require.NoError(t, err)
-	defer db.Close()
-
-	repo := NewHotelRepository(db)
-
-	ctx := context.Background()
 
 	t.Run("store complete property", func(t *testing.T) {
 		t.Parallel()
+		config := Config{
+			Host:     "localhost",
+			Port:     5432,
+			User:     "cupid",
+			Password: "cupid123",
+			DBName:   "cupid",
+			SSLMode:  "disable",
+		}
+		db, err := NewConnection(config)
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewHotelRepository(db)
+		ctx := context.Background()
 		property := dummyProperty(12345, 67890, "Test Hotel")
 
-		err := repo.StoreProperty(ctx, property)
+		err = repo.StoreProperty(ctx, property)
 		require.NoError(t, err)
 
 		// Verify hotel was stored
@@ -179,12 +178,27 @@ func TestHotelRepository_StoreProperty(t *testing.T) {
 
 	t.Run("update existing property", func(t *testing.T) {
 		t.Parallel()
+		config := Config{
+			Host:     "localhost",
+			Port:     5432,
+			User:     "cupid",
+			Password: "cupid123",
+			DBName:   "cupid",
+			SSLMode:  "disable",
+		}
+		db, err := NewConnection(config)
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewHotelRepository(db)
+		ctx := context.Background()
+
 		// First create a hotel
 		originalProperty := dummyProperty(77777, 88888, "Original Hotel")
 		originalProperty.Rating = 3.5
 		originalProperty.ReviewCount = 50
 
-		err := repo.StoreProperty(ctx, originalProperty)
+		err = repo.StoreProperty(ctx, originalProperty)
 		require.NoError(t, err)
 
 		// Then update it
@@ -206,29 +220,29 @@ func TestHotelRepository_StoreProperty(t *testing.T) {
 
 func TestHotelRepository_GetHotelByID(t *testing.T) {
 	t.Parallel()
-	config := Config{
-		Host:     "localhost",
-		Port:     5432,
-		User:     "cupid",
-		Password: "cupid123",
-		DBName:   "cupid",
-		SSLMode:  "disable",
-	}
-	db, err := NewConnection(config)
-	require.NoError(t, err)
-	defer db.Close()
-
-	repo := NewHotelRepository(db)
-	ctx := context.Background()
 
 	t.Run("get existing hotel", func(t *testing.T) {
 		t.Parallel()
+		config := Config{
+			Host:     "localhost",
+			Port:     5432,
+			User:     "cupid",
+			Password: "cupid123",
+			DBName:   "cupid",
+			SSLMode:  "disable",
+		}
+		db, err := NewConnection(config)
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewHotelRepository(db)
+		ctx := context.Background()
 		// First create a hotel
 		property := dummyProperty(55555, 66666, "Get Hotel Test")
 		property.Rating = 4.2
 		property.ReviewCount = 75
 
-		err := repo.StoreProperty(ctx, property)
+		err = repo.StoreProperty(ctx, property)
 		require.NoError(t, err)
 
 		// Then retrieve it
@@ -241,6 +255,21 @@ func TestHotelRepository_GetHotelByID(t *testing.T) {
 
 	t.Run("get non-existing hotel", func(t *testing.T) {
 		t.Parallel()
+		config := Config{
+			Host:     "localhost",
+			Port:     5432,
+			User:     "cupid",
+			Password: "cupid123",
+			DBName:   "cupid",
+			SSLMode:  "disable",
+		}
+		db, err := NewConnection(config)
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewHotelRepository(db)
+		ctx := context.Background()
+
 		hotel, err := repo.GetHotelByID(ctx, 999999)
 		assert.Error(t, err)
 		assert.Nil(t, hotel)
@@ -249,22 +278,23 @@ func TestHotelRepository_GetHotelByID(t *testing.T) {
 
 func TestHotelRepository_StoreProperty_EmptyData(t *testing.T) {
 	t.Parallel()
-	config := Config{
-		Host:     "localhost",
-		Port:     5432,
-		User:     "cupid",
-		Password: "cupid123",
-		DBName:   "cupid",
-		SSLMode:  "disable",
-	}
-	db, err := NewConnection(config)
-	require.NoError(t, err)
-	defer db.Close()
-
-	repo := NewHotelRepository(db)
-	ctx := context.Background()
 
 	t.Run("store property with empty collections", func(t *testing.T) {
+		t.Parallel()
+		config := Config{
+			Host:     "localhost",
+			Port:     5432,
+			User:     "cupid",
+			Password: "cupid123",
+			DBName:   "cupid",
+			SSLMode:  "disable",
+		}
+		db, err := NewConnection(config)
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewHotelRepository(db)
+		ctx := context.Background()
 		property := dummyProperty(54321, 98765, "Empty Collections Hotel")
 		property.Rating = 3.5
 		property.ReviewCount = 50
@@ -273,7 +303,7 @@ func TestHotelRepository_StoreProperty_EmptyData(t *testing.T) {
 		property.Policies = []client.Policy{}
 		property.Rooms = []client.Room{}
 
-		err := repo.StoreProperty(ctx, property)
+		err = repo.StoreProperty(ctx, property)
 		require.NoError(t, err)
 
 		// Verify hotel was stored
@@ -286,22 +316,23 @@ func TestHotelRepository_StoreProperty_EmptyData(t *testing.T) {
 
 func TestHotelRepository_ConcurrentAccess(t *testing.T) {
 	t.Parallel()
-	config := Config{
-		Host:     "localhost",
-		Port:     5432,
-		User:     "cupid",
-		Password: "cupid123",
-		DBName:   "cupid",
-		SSLMode:  "disable",
-	}
-	db, err := NewConnection(config)
-	require.NoError(t, err)
-	defer db.Close()
-
-	repo := NewHotelRepository(db)
-	ctx := context.Background()
 
 	t.Run("concurrent property storage", func(t *testing.T) {
+		t.Parallel()
+		config := Config{
+			Host:     "localhost",
+			Port:     5432,
+			User:     "cupid",
+			Password: "cupid123",
+			DBName:   "cupid",
+			SSLMode:  "disable",
+		}
+		db, err := NewConnection(config)
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewHotelRepository(db)
+		ctx := context.Background()
 		const numGoroutines = 5
 		done := make(chan bool, numGoroutines)
 
@@ -313,7 +344,7 @@ func TestHotelRepository_ConcurrentAccess(t *testing.T) {
 				property.Rating = 4.0 + float64(id)*0.1
 				property.ReviewCount = 100 + id*10
 
-				err := repo.StoreProperty(ctx, property)
+				err = repo.StoreProperty(ctx, property)
 				require.NoError(t, err)
 			}(i)
 		}
@@ -334,28 +365,29 @@ func TestHotelRepository_ConcurrentAccess(t *testing.T) {
 
 func TestHotelRepository_TransactionRollback(t *testing.T) {
 	t.Parallel()
-	config := Config{
-		Host:     "localhost",
-		Port:     5432,
-		User:     "cupid",
-		Password: "cupid123",
-		DBName:   "cupid",
-		SSLMode:  "disable",
-	}
-	db, err := NewConnection(config)
-	require.NoError(t, err)
-	defer db.Close()
-
-	repo := NewHotelRepository(db)
-	ctx := context.Background()
 
 	t.Run("transaction rollback on error", func(t *testing.T) {
+		t.Parallel()
+		config := Config{
+			Host:     "localhost",
+			Port:     5432,
+			User:     "cupid",
+			Password: "cupid123",
+			DBName:   "cupid",
+			SSLMode:  "disable",
+		}
+		db, err := NewConnection(config)
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewHotelRepository(db)
+		ctx := context.Background()
 		// Store a property first
 		property := dummyProperty(99999, 88888, "Rollback Test Hotel")
 		property.Rating = 4.0
 		property.ReviewCount = 100
 
-		err := repo.StoreProperty(ctx, property)
+		err = repo.StoreProperty(ctx, property)
 		require.NoError(t, err)
 
 		// Verify it was stored

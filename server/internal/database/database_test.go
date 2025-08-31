@@ -86,41 +86,67 @@ func TestNewConnection(t *testing.T) {
 func TestDB_Ping(t *testing.T) {
 	t.Parallel()
 
-	config := Config{
-		Host:     "localhost",
-		Port:     5432,
-		User:     "cupid",
-		Password: "cupid123",
-		DBName:   "cupid",
-		SSLMode:  "disable",
-	}
-
-	db, err := NewConnection(config)
-	require.NoError(t, err)
-	defer db.Close()
-
 	t.Run("successful ping", func(t *testing.T) {
 		t.Parallel()
+		config := Config{
+			Host:     "localhost",
+			Port:     5432,
+			User:     "cupid",
+			Password: "cupid123",
+			DBName:   "cupid",
+			SSLMode:  "disable",
+		}
+
+		db, err := NewConnection(config)
+		require.NoError(t, err)
+		defer db.Close()
+
 		ctx := context.Background()
-		err := db.Ping(ctx)
+		err = db.Ping(ctx)
 		assert.NoError(t, err)
 	})
 
 	t.Run("ping with timeout", func(t *testing.T) {
 		t.Parallel()
+		config := Config{
+			Host:     "localhost",
+			Port:     5432,
+			User:     "cupid",
+			Password: "cupid123",
+			DBName:   "cupid",
+			SSLMode:  "disable",
+		}
+
+		db, err := NewConnection(config)
+		require.NoError(t, err)
+		defer db.Close()
+
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		err := db.Ping(ctx)
+		err = db.Ping(ctx)
 		assert.NoError(t, err)
 	})
 
 	t.Run("ping with cancelled context", func(t *testing.T) {
 		t.Parallel()
+		config := Config{
+			Host:     "localhost",
+			Port:     5432,
+			User:     "cupid",
+			Password: "cupid123",
+			DBName:   "cupid",
+			SSLMode:  "disable",
+		}
+
+		db, err := NewConnection(config)
+		require.NoError(t, err)
+		defer db.Close()
+
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel() // Cancel immediately
 
-		err := db.Ping(ctx)
+		err = db.Ping(ctx)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "context canceled")
 	})

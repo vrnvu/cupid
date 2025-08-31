@@ -14,70 +14,6 @@ concurrency:
     cancel-in-progress: true
 
 jobs:
-    test:
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
-
-            - name: Set up Go
-              id: setup-go
-              uses: actions/setup-go@v5
-              with:
-                go-version-file: server/go.mod
-                cache: true
-                cache-dependency-path: server/go.sum
-
-            - name: Capture Go caches paths
-              id: go-cache-paths
-              working-directory: server
-              run: |
-                echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_ENV
-                echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_ENV
-
-            - name: Cache Go modules and build cache
-              uses: actions/cache@v4
-              with:
-                path: |
-                  ${{ env.GOMODCACHE }}
-                  ${{ env.GOCACHE }}
-                key: ${{ runner.os }}-go-${{ hashFiles('server/go.sum') }}-${{ steps.setup-go.outputs.go-version }}
-                restore-keys: |
-                  ${{ runner.os }}-go-${{ hashFiles('server/go.sum') }}-
-                  ${{ runner.os }}-go-
-
-            - name: Download modules
-              working-directory: server
-              run: go mod download
-
-            - name: Build binaries
-              shell: bash
-              run: make build
-
-            - name: Start docker-compose services
-              run: docker compose down -v && docker compose up -d
-
-            - name: Wait for database to be ready
-              run: |
-                timeout 30s bash -c 'until docker compose exec -T postgres pg_isready -U cupid -d cupid; do sleep 1; done'
-
-            - name: go-test
-              shell: bash
-              run: make test
-
-            - name: go-coverage
-              shell: bash
-              run: |-
-                OUTPUT="$(make test-coverage)"
-                TOTAL="$(echo $OUTPUT | awk 'END{print $NF}')"
-                echo "::group::Coverage (${TOTAL})"
-                echo "${OUTPUT}"
-                echo "::endgroup::"
-
-            - name: Cleanup docker-compose
-              if: always()
-              run: docker compose down -v
-
     lint:
         name: lint
         runs-on: ubuntu-latest
@@ -183,6 +119,46 @@ jobs:
                 restore-keys: |
                   ${{ runner.os }}-binaries-
 
+    test:
+        name: test
+        needs: build
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Restore built binaries
+              uses: actions/cache@v4
+              with:
+                path: bin/
+                key: ${{ runner.os }}-binaries-${{ needs.build.outputs.cache-key }}
+                restore-keys: |
+                  ${{ runner.os }}-binaries-
+
+            - name: Start docker-compose services
+              run: docker compose down -v && docker compose up -d
+
+            - name: Wait for database to be ready
+              run: |
+                timeout 30s bash -c 'until docker compose exec -T postgres pg_isready -U cupid -d cupid; do sleep 1; done'
+
+            - name: go-test
+              shell: bash
+              run: make test
+
+            - name: go-coverage
+              shell: bash
+              run: |-
+                OUTPUT="$(make test-coverage)"
+                TOTAL="$(echo $OUTPUT | awk 'END{print $NF}')"
+                echo "::group::Coverage (${TOTAL})"
+                echo "${OUTPUT}"
+                echo "::endgroup::"
+
+            - name: Cleanup docker-compose
+              if: always()
+              run: docker compose down -v
+
     integration-test-dev:
         name: integration-test-dev
         needs: build
@@ -218,7 +194,7 @@ jobs:
 
     integration-test-pre:
         name: integration-test-pre
-        needs: integration-test-dev
+        needs: [test, integration-test-dev]
         runs-on: ubuntu-latest
         environment: pre-production
         steps:
@@ -309,25 +285,3 @@ jobs:
 
             - name: Run PRO integration tests
               run: make integration-test-pro
-
-    summary:
-        name: summary
-        needs: [integration-test-dev, integration-test-pre, integration-test-pro]
-        runs-on: ubuntu-latest
-        if: always()
-        steps:
-            - name: Multi-Environment Test Summary
-              run: |
-                echo "🎉 Multi-Environment Integration Test Summary"
-                echo "=============================================="
-                echo "DEV:  ${{ needs.integration-test-dev.result }}"
-                echo "PRE:  ${{ needs.integration-test-pre.result }}"
-                echo "PRO:  ${{ needs.integration-test-pro.result }}"
-                echo ""
-                if [[ "${{ needs.integration-test-dev.result }}" == "success" && "${{ needs.integration-test-pre.result }}" == "success" && "${{ needs.integration-test-pro.result }}" == "success" ]]; then
-                  echo "✅ All environments passed!"
-                  exit 0
-                else
-                  echo "❌ Some environments failed!"
-                  exit 1
-                fi
