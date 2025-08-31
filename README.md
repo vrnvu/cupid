@@ -2,15 +2,33 @@
 
 Hotel management service with HTTP API and data synchronization.
 
-## Setup
+## Project Structure
 
+### Server Application
+- `server/` - Main Go application
+  - `cmd/server/` - HTTP API server entry point
+  - `cmd/data-sync/` - Data synchronization tool that fetches hotel data from Cupid API
+  - `internal/` - Application internals:
+    - `client/` - HTTP client for Cupid API calls
+    - `database/` - Database connection and repository layer
+    - `handlers/` - HTTP request handlers
+    - `telemetry/` - OpenTelemetry configuration with HoneyComb
+
+### Scripts and Testing
+- `scripts/integration-test.sh` - Integration test script that tests both server endpoints and data-sync functionality. This is re-used in DEV/PRE and PRO environments.
+- `wiremock/` - Mock server for testing external API calls
+
+### Database
+- `migrations/` - Database schema migrations
+
+## Environment Setup
+
+Copy the example environment file and configure it:
 ```bash
 cp .env.example .env
-# Edit .env for local setup (DB_HOST=localhost)
 ```
 
-## Environment Variables
-
+### Environment Variables
 - `PORT` - Server port (8080)
 - `ENABLE_TELEMETRY` - OpenTelemetry (0)
 - `DB_HOST` - Database host (localhost)
@@ -24,16 +42,15 @@ cp .env.example .env
 - `HOTEL_ID` - Default hotel ID for data sync
 - `ENV` - Environment (dev/pre/pro)
 
-## Development
+## Make Commands
 
-```bash
-make test                    
-make build                   
-make run-server            
-make run-data-sync          
-make start-docker           
-make integration-test       
-```
+- `make test` - Run unit tests
+- `make build` - Build both server and data-sync binaries
+- `make run-server` - Start the HTTP server
+- `make run-data-sync` - Run data synchronization
+- `make start-docker` - Start PostgreSQL database with Docker
+- `make integration-test` - Run integration tests against local environment
+- `make lint` - Run code linting
 
 ## API Endpoints
 
