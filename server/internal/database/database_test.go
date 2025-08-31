@@ -13,6 +13,7 @@ func TestNewConnection(t *testing.T) {
 	t.Parallel()
 
 	t.Run("successful connection", func(t *testing.T) {
+		t.Parallel()
 		config := Config{
 			Host:     "localhost",
 			Port:     5432,
@@ -31,6 +32,7 @@ func TestNewConnection(t *testing.T) {
 	})
 
 	t.Run("connection with invalid credentials", func(t *testing.T) {
+		t.Parallel()
 		config := Config{
 			Host:     "localhost",
 			Port:     5432,
@@ -47,6 +49,7 @@ func TestNewConnection(t *testing.T) {
 	})
 
 	t.Run("connection with invalid host", func(t *testing.T) {
+		t.Parallel()
 		config := Config{
 			Host:     "invalid-host",
 			Port:     5432,
@@ -63,6 +66,7 @@ func TestNewConnection(t *testing.T) {
 	})
 
 	t.Run("connection with invalid port", func(t *testing.T) {
+		t.Parallel()
 		config := Config{
 			Host:     "localhost",
 			Port:     9999, // Invalid port
@@ -96,12 +100,14 @@ func TestDB_Ping(t *testing.T) {
 	defer db.Close()
 
 	t.Run("successful ping", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		err := db.Ping(ctx)
 		assert.NoError(t, err)
 	})
 
 	t.Run("ping with timeout", func(t *testing.T) {
+		t.Parallel()
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
@@ -110,6 +116,7 @@ func TestDB_Ping(t *testing.T) {
 	})
 
 	t.Run("ping with cancelled context", func(t *testing.T) {
+		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel() // Cancel immediately
 
@@ -132,6 +139,7 @@ func TestDB_Close(t *testing.T) {
 	}
 
 	t.Run("close connection", func(t *testing.T) {
+		t.Parallel()
 		db, err := NewConnection(config)
 		require.NoError(t, err)
 
@@ -149,6 +157,7 @@ func TestDB_Close(t *testing.T) {
 	})
 
 	t.Run("close already closed connection", func(t *testing.T) {
+		t.Parallel()
 		db, err := NewConnection(config)
 		require.NoError(t, err)
 
@@ -179,6 +188,7 @@ func TestConnectionPoolSettings(t *testing.T) {
 	defer db.Close()
 
 	t.Run("verify connection pool settings", func(t *testing.T) {
+		t.Parallel()
 		// These settings are set in NewConnection
 		stats := db.DB.Stats()
 		assert.Equal(t, 25, stats.MaxOpenConnections)
@@ -187,6 +197,7 @@ func TestConnectionPoolSettings(t *testing.T) {
 	})
 
 	t.Run("connection pool stats", func(t *testing.T) {
+		t.Parallel()
 		stats := db.DB.Stats()
 		assert.GreaterOrEqual(t, stats.OpenConnections, 0)
 		assert.GreaterOrEqual(t, stats.InUse, 0)

@@ -163,6 +163,7 @@ func TestHotelRepository_StoreProperty(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("store complete property", func(t *testing.T) {
+		t.Parallel()
 		property := dummyProperty(12345, 67890, "Test Hotel")
 
 		err := repo.StoreProperty(ctx, property)
@@ -177,6 +178,7 @@ func TestHotelRepository_StoreProperty(t *testing.T) {
 	})
 
 	t.Run("update existing property", func(t *testing.T) {
+		t.Parallel()
 		// First create a hotel
 		originalProperty := dummyProperty(77777, 88888, "Original Hotel")
 		originalProperty.Rating = 3.5
@@ -220,6 +222,7 @@ func TestHotelRepository_GetHotelByID(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("get existing hotel", func(t *testing.T) {
+		t.Parallel()
 		// First create a hotel
 		property := dummyProperty(55555, 66666, "Get Hotel Test")
 		property.Rating = 4.2
@@ -237,6 +240,7 @@ func TestHotelRepository_GetHotelByID(t *testing.T) {
 	})
 
 	t.Run("get non-existing hotel", func(t *testing.T) {
+		t.Parallel()
 		hotel, err := repo.GetHotelByID(ctx, 999999)
 		assert.Error(t, err)
 		assert.Nil(t, hotel)
@@ -364,7 +368,7 @@ func TestHotelRepository_TransactionRollback(t *testing.T) {
 		invalidProperty.Rating = 4.0
 		invalidProperty.ReviewCount = 100
 
-		err = repo.StoreProperty(ctx, invalidProperty)
+		_ = repo.StoreProperty(ctx, invalidProperty)
 		// This might succeed due to upsert, but the point is to test transaction handling
 		// In a real scenario, you'd have more complex validation that could fail
 	})

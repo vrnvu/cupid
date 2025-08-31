@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/vrnvu/cupid/internal/client"
@@ -35,7 +36,11 @@ func (r *HotelRepository) StoreProperty(ctx context.Context, property *client.Pr
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
+	}()
 
 	hotelID, err := r.storeHotel(ctx, tx, property)
 	if err != nil {

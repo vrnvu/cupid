@@ -16,18 +16,18 @@ type mockHotelRepository struct {
 	pingErr error
 }
 
-func (m *mockHotelRepository) StoreProperty(ctx context.Context, property *client.Property) error {
+func (m *mockHotelRepository) StoreProperty(_ context.Context, _ *client.Property) error {
 	return nil
 }
 
-func (m *mockHotelRepository) GetHotelByID(ctx context.Context, hotelID int) (*client.Property, error) {
+func (m *mockHotelRepository) GetHotelByID(_ context.Context, hotelID int) (*client.Property, error) {
 	if hotel, exists := m.hotels[hotelID]; exists {
 		return hotel, nil
 	}
 	return nil, database.ErrHotelNotFound
 }
 
-func (m *mockHotelRepository) Ping(ctx context.Context) error {
+func (m *mockHotelRepository) Ping(_ context.Context) error {
 	return m.pingErr
 }
 

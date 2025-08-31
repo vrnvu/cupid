@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -45,10 +46,13 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
+	if err := json.NewEncoder(w).Encode(map[string]string{
 		"status":  "healthy",
 		"service": "cupid-api",
-	})
+	}); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (s *Server) getHotelHandler(w http.ResponseWriter, r *http.Request) {
@@ -67,7 +71,7 @@ func (s *Server) getHotelHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	hotel, err := s.repository.GetHotelByID(ctx, hotelID)
 	if err != nil {
-		if err == database.ErrHotelNotFound {
+		if errors.Is(err, database.ErrHotelNotFound) {
 			http.Error(w, fmt.Sprintf("Hotel with ID %d not found", hotelID), http.StatusNotFound)
 			return
 		}
@@ -77,5 +81,8 @@ func (s *Server) getHotelHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(hotel)
+	if err := json.NewEncoder(w).Encode(hotel); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
