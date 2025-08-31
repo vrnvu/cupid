@@ -50,6 +50,10 @@ jobs:
               working-directory: server
               run: go mod download
 
+            - name: Build binaries
+              shell: bash
+              run: make build
+
             - name: go-test
               shell: bash
               run: make test
@@ -114,9 +118,11 @@ jobs:
                 working-directory: server
                 args: --config ../.golangci.yaml
 
-    integration-test:
-        name: integration-test
+    build:
+        name: build
         runs-on: ubuntu-latest
+        outputs:
+          cache-key: ${{ steps.cache-key.outputs.value }}
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -151,16 +157,166 @@ jobs:
               working-directory: server
               run: go mod download
 
+            - name: Build binaries
+              run: make build
+
+            - name: Generate build cache key
+              id: cache-key
+              run: echo "value=${{ github.sha }}-${{ github.run_id }}" >> $GITHUB_OUTPUT
+
+            - name: Cache built binaries
+              uses: actions/cache@v4
+              with:
+                path: bin/
+                key: ${{ runner.os }}-binaries-${{ steps.cache-key.outputs.value }}
+                restore-keys: |
+                  ${{ runner.os }}-binaries-
+
+    integration-test-dev:
+        name: integration-test-dev
+        needs: build
+        runs-on: ubuntu-latest
+        environment: development
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Restore built binaries
+              uses: actions/cache@v4
+              with:
+                path: bin/
+                key: ${{ runner.os }}-binaries-${{ needs.build.outputs.cache-key }}
+                restore-keys: |
+                  ${{ runner.os }}-binaries-
+
             - name: Install dependencies
               run: sudo apt-get update && sudo apt-get install -y jq
 
-            - name: Make integration script executable
-              run: chmod +x scripts/integration-test.sh
+            - name: Create .env file for DEV
+              run: cp .env.dev .env
 
             - name: Start docker-compose services
-              run: docker compose up -d
+              run: docker compose down -v && docker compose up -d
 
-            - name: Run integration tests
-              run: ./scripts/integration-test.sh
-              env:
-                ENV: dev
+            - name: Wait for services to be ready
+              run: |
+                timeout 30s bash -c 'until curl -s http://localhost:8080/health > /dev/null; do sleep 1; done'
+
+            - name: Run DEV integration tests
+              run: make integration-test-dev
+
+    integration-test-pre:
+        name: integration-test-pre
+        needs: integration-test-dev
+        runs-on: ubuntu-latest
+        environment: pre-production
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Restore built binaries
+              uses: actions/cache@v4
+              with:
+                path: bin/
+                key: ${{ runner.os }}-binaries-${{ needs.build.outputs.cache-key }}
+                restore-keys: |
+                  ${{ runner.os }}-binaries-
+
+            - name: Install dependencies
+              run: sudo apt-get update && sudo apt-get install -y jq
+
+            - name: Create .env file for PRE
+              run: |
+                cat > .env << EOF
+                PORT=8080
+                ENABLE_TELEMETRY=0
+                DB_HOST=postgres
+                DB_PORT=5432
+                DB_USER=cupid
+                DB_PASSWORD=cupid123
+                DB_NAME=cupid
+                DB_SSLMODE=disable
+                CUPID_BASE_URL=http://localhost:8081
+                CUPID_SANDBOX_API=i2O4p6A8s0D3f5G7h9J1k3L5m7N9b
+                HOTEL_ID=1641879
+                ENV=pre
+                EOF
+
+            - name: Start docker-compose services
+              run: docker compose down -v && docker compose up -d
+
+            - name: Wait for services to be ready
+              run: |
+                timeout 30s bash -c 'until curl -s http://localhost:8080/health > /dev/null; do sleep 1; done'
+
+            - name: Run PRE integration tests
+              run: make integration-test-pre
+
+    integration-test-pro:
+        name: integration-test-pro
+        needs: integration-test-pre
+        runs-on: ubuntu-latest
+        environment: production
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Restore built binaries
+              uses: actions/cache@v4
+              with:
+                path: bin/
+                key: ${{ runner.os }}-binaries-${{ needs.build.outputs.cache-key }}
+                restore-keys: |
+                  ${{ runner.os }}-binaries-
+
+            - name: Install dependencies
+              run: sudo apt-get update && sudo apt-get install -y jq
+
+            - name: Create .env file for PRO
+              run: |
+                cat > .env << EOF
+                PORT=8080
+                ENABLE_TELEMETRY=0
+                DB_HOST=postgres
+                DB_PORT=5432
+                DB_USER=cupid
+                DB_PASSWORD=cupid123
+                DB_NAME=cupid
+                DB_SSLMODE=disable
+                CUPID_BASE_URL=http://localhost:8081
+                CUPID_SANDBOX_API=i2O4p6A8s0D3f5G7h9J1k3L5m7N9b
+                HOTEL_ID=1641879
+                ENV=pro
+                EOF
+
+            - name: Start docker-compose services
+              run: docker compose down -v && docker compose up -d
+
+            - name: Wait for services to be ready
+              run: |
+                timeout 30s bash -c 'until curl -s http://localhost:8080/health > /dev/null; do sleep 1; done'
+
+            - name: Run PRO integration tests
+              run: make integration-test-pro
+
+    summary:
+        name: summary
+        needs: [integration-test-dev, integration-test-pre, integration-test-pro]
+        runs-on: ubuntu-latest
+        if: always()
+        steps:
+            - name: Multi-Environment Test Summary
+              run: |
+                echo "🎉 Multi-Environment Integration Test Summary"
+                echo "=============================================="
+                echo "DEV:  ${{ needs.integration-test-dev.result }}"
+                echo "PRE:  ${{ needs.integration-test-pre.result }}"
+                echo "PRO:  ${{ needs.integration-test-pro.result }}"
+                echo ""
+                if [[ "${{ needs.integration-test-dev.result }}" == "success" && "${{ needs.integration-test-pre.result }}" == "success" && "${{ needs.integration-test-pro.result }}" == "success" ]]; then
+                  echo "✅ All environments passed!"
+                  exit 0
+                else
+                  echo "❌ Some environments failed!"
+                  exit 1
+                fi

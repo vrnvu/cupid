@@ -9,12 +9,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/vrnvu/cupid/internal/database"
 	"github.com/vrnvu/cupid/internal/handlers"
 	"github.com/vrnvu/cupid/internal/telemetry"
 )
 
 func main() {
-	// Enable telemetry only if explicitly opted in
 	if os.Getenv("ENABLE_TELEMETRY") == "1" {
 		otelShutdown, err := telemetry.ConfigureOpenTelemetry()
 		if err != nil {
@@ -23,28 +23,39 @@ func main() {
 		defer otelShutdown()
 	}
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+	dbConfig := database.Config{
+		Host:     getEnvOrDefault("DB_HOST", "localhost"),
+		Port:     5432,
+		User:     getEnvOrDefault("DB_USER", "cupid"),
+		Password: getEnvOrDefault("DB_PASSWORD", "cupid123"),
+		DBName:   getEnvOrDefault("DB_NAME", "cupid"),
+		SSLMode:  getEnvOrDefault("DB_SSLMODE", "disable"),
 	}
+
+	db, err := database.NewConnection(dbConfig)
+	if err != nil {
+		log.Fatalf("failed to connect to database: %v", err)
+	}
+	defer db.Close()
+
+	repository := database.NewHotelRepository(db)
+	server := handlers.NewServer(repository)
+
+	port := getEnvOrDefault("PORT", "8080")
 	addr := ":" + port
 
-	router := http.NewServeMux()
-	router.Handle("/health", telemetry.NewHandler(handlers.NewServerHandler("health"), "ServerHandlerHealth"))
-	router.Handle("/foo", telemetry.NewHandler(handlers.NewServerHandler("foo"), "ServerHandlerFoo"))
-	router.Handle("/bar", telemetry.NewHandler(handlers.NewServerHandler("bar"), "ServerHandlerBar"))
-	router.Handle("/baz", telemetry.NewHandler(handlers.NewServerHandler("baz"), "ServerHandlerBaz"))
-
-	server := &http.Server{
-		Addr:              addr,
-		Handler:           router,
-		ReadHeaderTimeout: 5 * time.Second,
+	httpServer := &http.Server{
+		Addr:         addr,
+		Handler:      server,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
 	}
 
 	go func() {
 		log.Printf("Starting server on %s", addr)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("server error: %v", err)
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("failed to start server: %v", err)
 		}
 	}()
 
@@ -52,13 +63,21 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Printf("shutting down server...")
+	log.Println("Shutting down server...")
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err := server.Shutdown(ctx); err != nil {
-		log.Fatalf("server forced to shutdown: %v", err)
+	if err := httpServer.Shutdown(ctx); err != nil {
+		log.Fatalf("Server forced to shutdown: %v", err)
 	}
 
-	log.Println("server exited")
+	log.Println("Server exited")
+}
+
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }

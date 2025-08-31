@@ -6,10 +6,14 @@ services:
     image: cupid/server:local
     container_name: cupid-server
     ports:
-      - "8080:8080"
+      - "${PORT:-8080}:8080"
+    env_file:
+      - .env
     environment:
-      - ENABLE_TELEMETRY=0
-      - PORT=8080
+      - DB_HOST=postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - appnet
 
@@ -22,6 +26,29 @@ services:
       - ./wiremock:/home/wiremock
     networks:
       - appnet
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: cupid-postgres
+    environment:
+      - POSTGRES_DB=${DB_NAME:-cupid}
+      - POSTGRES_USER=${DB_USER:-cupid}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-cupid123}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-cupid} -d ${DB_NAME:-cupid}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - appnet
+
+volumes:
+  postgres_data:
 
 networks:
   appnet:

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/vrnvu/cupid/internal/client"
+	"github.com/vrnvu/cupid/internal/database"
 	"github.com/vrnvu/cupid/internal/telemetry"
 )
 
@@ -37,6 +38,23 @@ func main() {
 		hotelID = "1641879"
 	}
 
+	dbConfig := database.Config{
+		Host:     getEnvOrDefault("DB_HOST", "localhost"),
+		Port:     5432,
+		User:     getEnvOrDefault("DB_USER", "cupid"),
+		Password: getEnvOrDefault("DB_PASSWORD", "cupid123"),
+		DBName:   getEnvOrDefault("DB_NAME", "cupid"),
+		SSLMode:  getEnvOrDefault("DB_SSLMODE", "disable"),
+	}
+
+	db, err := database.NewConnection(dbConfig)
+	if err != nil {
+		log.Fatalf("failed to connect to database: %v", err)
+	}
+	defer db.Close()
+
+	repository := database.NewHotelRepository(db)
+
 	c, err := client.New(baseURL,
 		client.WithTimeout(5*time.Second),
 		client.WithUserAgent("cupid-data-sync/1.0"),
@@ -60,5 +78,26 @@ func main() {
 		log.Fatalf("request failed: %v", err)
 	}
 	defer resp.Body.Close()
-	log.Printf("status=%d body=%s", resp.StatusCode, string(body))
+
+	log.Printf("status=%d", resp.StatusCode)
+
+	property, err := client.ParseProperty(body)
+	if err != nil {
+		log.Fatalf("failed to parse property: %v", err)
+	}
+
+	log.Printf("parsed property: %s", property.HotelName)
+
+	if err := repository.StoreProperty(ctx, property); err != nil {
+		log.Fatalf("failed to store property: %v", err)
+	}
+
+	log.Printf("successfully stored property %d: %s", property.HotelID, property.HotelName)
+}
+
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }

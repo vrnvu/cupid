@@ -8,6 +8,58 @@ test:
 		-coverprofile=coverage.out
 .PHONY: test
 
+build-server:
+	@mkdir -p bin
+	@cd server && go build -o ../bin/server ./cmd/server
+.PHONY: build-server
+
+build-data-sync:
+	@mkdir -p bin
+	@cd server && go build -o ../bin/data-sync ./cmd/data-sync
+.PHONY: build-data-sync
+
+build:
+	@mkdir -p bin
+	@cd server && go build -o ../bin/server ./cmd/server
+	@cd server && go build -o ../bin/data-sync ./cmd/data-sync
+.PHONY: build
+
+run-server:
+	@cd server && go run ./cmd/server
+.PHONY: run-server
+
+run-data-sync:
+	@cd server && go run ./cmd/data-sync
+.PHONY: run-data-sync
+
+start-docker:
+	docker compose down -v && docker compose up
+.PHONY: start-docker
+
+stop-docker:
+	docker compose down -v
+.PHONY: stop-docker
+
+integration-test:
+	@chmod +x scripts/integration-test.sh
+	@ENV=local ./scripts/integration-test.sh
+.PHONY: integration-test
+
+integration-test-dev:
+	@chmod +x scripts/integration-test.sh
+	@ENV=dev ./scripts/integration-test.sh
+.PHONY: integration-test-dev
+
+integration-test-pre:
+	@chmod +x scripts/integration-test.sh
+	@ENV=pre ./scripts/integration-test.sh
+.PHONY: integration-test-pre
+
+integration-test-pro:
+	@chmod +x scripts/integration-test.sh
+	@ENV=pro ./scripts/integration-test.sh
+.PHONY: integration-test-pro
+
 # lint uses the same linter as CI and tries to report the same results running
 # locally. There is a chance that CI detects linter errors that are not found
 # locally, but it should be rare.
