@@ -54,6 +54,13 @@ jobs:
               shell: bash
               run: make build
 
+            - name: Start docker-compose services
+              run: docker compose down -v && docker compose up -d
+
+            - name: Wait for database to be ready
+              run: |
+                timeout 30s bash -c 'until docker compose exec -T postgres pg_isready -U cupid -d cupid; do sleep 1; done'
+
             - name: go-test
               shell: bash
               run: make test
@@ -66,6 +73,10 @@ jobs:
                 echo "::group::Coverage (${TOTAL})"
                 echo "${OUTPUT}"
                 echo "::endgroup::"
+
+            - name: Cleanup docker-compose
+              if: always()
+              run: docker compose down -v
 
     lint:
         name: lint
