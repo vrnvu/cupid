@@ -21,6 +21,14 @@ Hotel management service with HTTP API and data synchronization.
 ### Database
 - `migrations/` - Database schema migrations
 
+## Getting Started
+
+```bash
+make start-docker
+make test
+make integration-test
+```
+
 ## Environment Setup
 
 Copy the example environment file and configure it:
