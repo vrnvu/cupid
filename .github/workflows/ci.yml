@@ -197,7 +197,21 @@ jobs:
               run: sudo apt-get update && sudo apt-get install -y jq
 
             - name: Create .env file for DEV
-              run: cp .env.dev .env
+              run: |
+                cat > .env << EOF
+                PORT=8080
+                ENABLE_TELEMETRY=0
+                DB_HOST=postgres
+                DB_PORT=5432
+                DB_USER=cupid
+                DB_PASSWORD=cupid123
+                DB_NAME=cupid
+                DB_SSLMODE=disable
+                CUPID_BASE_URL=http://localhost:8081
+                CUPID_SANDBOX_API=i2O4p6A8s0D3f5G7h9J1k3L5m7N9b
+                HOTEL_ID=1641879
+                ENV=dev
+                EOF
 
             - name: Start docker-compose services
               run: docker compose down -v && docker compose up -d
