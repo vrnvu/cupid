@@ -12,45 +12,87 @@ import (
 	"github.com/vrnvu/cupid/internal/client"
 	"github.com/vrnvu/cupid/internal/database"
 	"github.com/vrnvu/cupid/internal/telemetry"
+	"golang.org/x/time/rate"
 )
 
 type Server struct {
-	repository database.Repository
-	cache      cache.ReviewCache
+	repository  database.Repository
+	cache       cache.ReviewCache
+	apiKey      string
+	rateLimiter *rate.Limiter
 }
 
-func NewServer(repository database.Repository, cache cache.ReviewCache) http.Handler {
-	server := &Server{repository: repository, cache: cache}
+func NewServer(repository database.Repository, cache cache.ReviewCache, apiKey string) http.Handler {
+	server := &Server{
+		repository:  repository,
+		cache:       cache,
+		apiKey:      apiKey,
+		rateLimiter: rate.NewLimiter(rate.Every(time.Minute/100), 10), // 100 per minute, burst of 10
+	}
 
 	mux := http.NewServeMux()
 
+	// Health endpoint doesn't require authentication
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		handler := telemetry.NewHandler(http.HandlerFunc(server.healthHandler), "HealthCheck")
 		handler.ServeHTTP(w, r)
 	})
+
+	// Protected API endpoints
 	mux.HandleFunc("GET /api/v1/hotels", func(w http.ResponseWriter, r *http.Request) {
-		handler := telemetry.NewHandler(http.HandlerFunc(server.getHotelsHandler), "HotelsHandler")
+		handler := telemetry.NewHandler(server.authenticateAndHandle(server.getHotelsHandler), "HotelsHandler")
 		handler.ServeHTTP(w, r)
 	})
 
 	mux.HandleFunc("GET /api/v1/hotels/{hotelID}", func(w http.ResponseWriter, r *http.Request) {
-		handler := telemetry.NewHandler(http.HandlerFunc(server.getHotelHandler), "HotelHandler")
+		handler := telemetry.NewHandler(server.authenticateAndHandle(server.getHotelHandler), "HotelHandler")
 		handler.ServeHTTP(w, r)
 	})
 	mux.HandleFunc("GET /api/v1/hotels/{hotelID}/reviews", func(w http.ResponseWriter, r *http.Request) {
-		handler := telemetry.NewHandler(http.HandlerFunc(server.getHotelReviewsHandler), "HotelReviewsHandler")
+		handler := telemetry.NewHandler(server.authenticateAndHandle(server.getHotelReviewsHandler), "HotelReviewsHandler")
 		handler.ServeHTTP(w, r)
 	})
 	mux.HandleFunc("GET /api/v1/hotels/{hotelID}/translations/{language}", func(w http.ResponseWriter, r *http.Request) {
-		handler := telemetry.NewHandler(http.HandlerFunc(server.getHotelTranslationsHandler), "HotelTranslationsHandler")
+		handler := telemetry.NewHandler(server.authenticateAndHandle(server.getHotelTranslationsHandler), "HotelTranslationsHandler")
 		handler.ServeHTTP(w, r)
 	})
 	mux.HandleFunc("GET /api/v1/reviews/search", func(w http.ResponseWriter, r *http.Request) {
-		handler := telemetry.NewHandler(http.HandlerFunc(server.searchReviewsHandler), "SearchReviewsHandler")
+		handler := telemetry.NewHandler(server.authenticateAndHandle(server.searchReviewsHandler), "SearchReviewsHandler")
 		handler.ServeHTTP(w, r)
 	})
 
 	return mux
+}
+
+// authenticateAndHandle wraps handlers with API key authentication and rate limiting
+func (s *Server) authenticateAndHandle(handler http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !s.rateLimiter.Allow() {
+			http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
+			return
+		}
+
+		if s.apiKey != "" {
+			authHeader := r.Header.Get("Authorization")
+			if authHeader == "" {
+				http.Error(w, "Authorization header required", http.StatusUnauthorized)
+				return
+			}
+
+			if len(authHeader) < 7 || authHeader[:7] != "Bearer " {
+				http.Error(w, "Invalid authorization format. Use 'Bearer <api-key>'", http.StatusUnauthorized)
+				return
+			}
+
+			apiKey := authHeader[7:] // Remove "Bearer " prefix
+			if apiKey != s.apiKey {
+				http.Error(w, "Invalid API key", http.StatusUnauthorized)
+				return
+			}
+		}
+
+		handler(w, r)
+	}
 }
 
 func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
