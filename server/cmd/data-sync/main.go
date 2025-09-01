@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"github.com/vrnvu/cupid/internal/client"
 	"github.com/vrnvu/cupid/internal/database"
 	"github.com/vrnvu/cupid/internal/telemetry"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 var allHotelIDs = []int{
@@ -47,7 +49,13 @@ func main() {
 		if err != nil {
 			log.Fatalf("failed to configure OpenTelemetry: %v", err)
 		}
-		defer otelShutdown()
+		defer func() {
+			log.Println("Flushing traces to Honeycomb...")
+			if err := telemetry.ForceFlushTraces(); err != nil {
+				log.Printf("Warning: Failed to flush traces: %v", err)
+			}
+			otelShutdown()
+		}()
 	}
 
 	baseURL := os.Getenv("CUPID_BASE_URL")
@@ -62,7 +70,7 @@ func main() {
 			log.Fatalf("invalid hotel ID: %s", singleHotelID)
 		}
 		log.Printf("Starting sync for hotel %d", hotelID)
-		if err := syncHotel(hotelID, baseURL, cupidSandboxAPI, et); err != nil {
+		if err := syncHotel(context.Background(), hotelID, baseURL, cupidSandboxAPI, et); err != nil {
 			log.Printf("Failed to sync hotel %d: %v", hotelID, err)
 		}
 		log.Printf("Completed sync for hotel %d", hotelID)
@@ -72,7 +80,7 @@ func main() {
 
 		for i, hotelID := range allHotelIDs {
 			log.Printf("Processing hotel %d (%d/%d)", hotelID, i+1, len(allHotelIDs))
-			if err := syncHotel(hotelID, baseURL, cupidSandboxAPI, et); err == nil {
+			if err := syncHotel(context.Background(), hotelID, baseURL, cupidSandboxAPI, et); err == nil {
 				successCount++
 			} else {
 				log.Printf("Failed to sync hotel %d: %v", hotelID, err)
@@ -84,7 +92,7 @@ func main() {
 	}
 }
 
-func syncHotel(hotelID int, baseURL, apiKey string, endpointType EndpointType) error {
+func syncHotel(ctx context.Context, hotelID int, baseURL, apiKey string, endpointType EndpointType) error {
 	dbConfig := database.Config{
 		Host:     getEnvOrDefault("DB_HOST", "localhost"),
 		Port:     5432,
@@ -102,38 +110,37 @@ func syncHotel(hotelID int, baseURL, apiKey string, endpointType EndpointType) e
 
 	repository := database.NewHotelRepository(db)
 
-	c, err := client.New(baseURL,
-		client.WithTimeout(10*time.Second),
-		client.WithUserAgent("cupid-data-sync/1.0"),
-		client.WithConnectionClose(),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create client: %w", err)
+	httpClient := &http.Client{
+		Transport: otelhttp.NewTransport(http.DefaultTransport),
 	}
 
-	headers := make(http.Header)
-	headers.Add("accept", "application/json")
-	headers.Add("x-api-key", apiKey)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
 	switch endpointType {
 	case ContentEndpoint:
-		return syncHotelContent(ctx, c, headers, hotelID, repository)
+		return syncHotelContent(ctx, httpClient, baseURL, apiKey, hotelID, repository)
 	case ReviewsEndpoint:
-		return syncHotelReviews(ctx, c, headers, hotelID, repository)
+		return syncHotelReviews(ctx, httpClient, baseURL, apiKey, hotelID, repository)
 	case TranslationsEndpoint:
-		return syncHotelTranslations(ctx, c, headers, hotelID, repository)
+		return syncHotelTranslations(ctx, httpClient, baseURL, apiKey, hotelID, repository)
 	default:
 		return fmt.Errorf("unknown endpoint type: %s", endpointType)
 	}
 }
 
-func syncHotelContent(ctx context.Context, c *client.Client, headers http.Header, hotelID int, repository *database.HotelRepository) error {
+func syncHotelContent(ctx context.Context, httpClient *http.Client, baseURL, apiKey string, hotelID int, repository *database.HotelRepository) error {
 	path := fmt.Sprintf("/v3.0/property/%d", hotelID)
+	url := baseURL + path
 
-	body, resp, err := c.Do(ctx, http.MethodGet, path, nil, headers)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("accept", "application/json")
+	req.Header.Set("x-api-key", apiKey)
+
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
@@ -141,6 +148,11 @@ func syncHotelContent(ctx context.Context, c *client.Client, headers http.Header
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
 	}
 
 	property, err := client.ParseProperty(body)
@@ -155,11 +167,19 @@ func syncHotelContent(ctx context.Context, c *client.Client, headers http.Header
 	return nil
 }
 
-func syncHotelReviews(ctx context.Context, c *client.Client, headers http.Header, hotelID int, repository *database.HotelRepository) error {
+func syncHotelReviews(ctx context.Context, httpClient *http.Client, baseURL, apiKey string, hotelID int, repository *database.HotelRepository) error {
 	reviewCount := 100
 	path := fmt.Sprintf("/v3.0/property/reviews/%d/%d", hotelID, reviewCount)
+	url := baseURL + path
 
-	body, resp, err := c.Do(ctx, http.MethodGet, path, nil, headers)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("accept", "application/json")
+	req.Header.Set("x-api-key", apiKey)
+
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
@@ -167,6 +187,11 @@ func syncHotelReviews(ctx context.Context, c *client.Client, headers http.Header
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
 	}
 
 	if len(body) > 0 {
@@ -185,30 +210,47 @@ func syncHotelReviews(ctx context.Context, c *client.Client, headers http.Header
 	return nil
 }
 
-func syncHotelTranslations(ctx context.Context, c *client.Client, headers http.Header, hotelID int, repository *database.HotelRepository) error {
+func syncHotelTranslations(ctx context.Context, httpClient *http.Client, baseURL, apiKey string, hotelID int, repository *database.HotelRepository) error {
 	languages := []string{"fr", "es", "en"}
 	var allTranslations []client.Translation
 
 	for _, lang := range languages {
 		path := fmt.Sprintf("/v3.0/property/%d/lang/%s", hotelID, lang)
+		url := baseURL + path
 
-		body, resp, err := c.Do(ctx, http.MethodGet, path, nil, headers)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			log.Printf("Failed to create request for %s translations for hotel %d: %v", lang, hotelID, err)
+			continue
+		}
+		req.Header.Set("accept", "application/json")
+		req.Header.Set("x-api-key", apiKey)
+
+		resp, err := httpClient.Do(req)
 		if err != nil {
 			log.Printf("Failed to get %s translations for hotel %d: %v", lang, hotelID, err)
 			continue
 		}
 		defer resp.Body.Close()
 
-		if resp.StatusCode == http.StatusOK && len(body) > 0 {
-			translations, err := client.ParseTranslations(body)
+		if resp.StatusCode == http.StatusOK {
+			body, err := io.ReadAll(resp.Body)
 			if err != nil {
-				log.Printf("Failed to parse %s translations for hotel %d: %v", lang, hotelID, err)
+				log.Printf("Failed to read response for %s translations for hotel %d: %v", lang, hotelID, err)
 				continue
 			}
 
-			for _, translation := range translations {
-				translation.LanguageCode = lang
-				allTranslations = append(allTranslations, translation)
+			if len(body) > 0 {
+				translations, err := client.ParseTranslations(body)
+				if err != nil {
+					log.Printf("Failed to parse %s translations for hotel %d: %v", lang, hotelID, err)
+					continue
+				}
+
+				for _, translation := range translations {
+					translation.LanguageCode = lang
+					allTranslations = append(allTranslations, translation)
+				}
 			}
 		}
 	}
