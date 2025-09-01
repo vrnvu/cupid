@@ -132,10 +132,9 @@ cp .env.example .env
 
 ## API Endpoints
 
-- `GET /health` - Health check
-- `GET /api/v1/hotels/{hotelID}` - Get hotel by ID
-- `GET /api/v1/hotels/{hotelID}/reviews` - Get hotel reviews
-- `GET /api/v1/hotels/{hotelID}/translations/{language}` - Get hotel translations (supported languages: fr, es, en)
+See `openapi.yaml`.
+
+You can use: https://editor.swagger.io
 
 ## Tests
 
