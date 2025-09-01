@@ -1,0 +1,484 @@
+openapi: 3.0.3
+info:
+  title: Cupid Hotel Management API
+  description: |
+    Hotel management service with HTTP API and data synchronization. 
+    Consumes Cupid API to fetch hotel properties, reviews, and translations, 
+    stores them in PostgreSQL, and exposes a REST API.
+  version: 1.0.0
+  contact:
+    name: Cupid API Support
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+  - url: https://api.cupid.com
+    description: Production server
+
+paths:
+  /health:
+    get:
+      summary: Health Check
+      description: Check the health status of the service and database connectivity
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  service:
+                    type: string
+                    example: "cupid-api"
+                required:
+                  - status
+                  - service
+        "405":
+          description: Method not allowed
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Method not allowed"
+        "503":
+          description: Service unavailable - database connection failed
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Database connection failed"
+
+  /api/v1/hotels:
+    get:
+      summary: List Hotels
+      description: Retrieve a paginated list of hotels
+      operationId: listHotels
+      tags:
+        - Hotels
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of hotels to return (1-100)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          description: Number of hotels to skip
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: List of hotels retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  hotels:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/HotelSummary"
+                  count:
+                    type: integer
+                    description: Number of hotels returned
+                  limit:
+                    type: integer
+                    description: Maximum number of hotels requested
+                  offset:
+                    type: integer
+                    description: Number of hotels skipped
+                required:
+                  - hotels
+                  - count
+                  - limit
+                  - offset
+        "500":
+          description: Internal server error
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Internal server error"
+
+  /api/v1/hotels/{hotelID}:
+    get:
+      summary: Get Hotel by ID
+      description: Retrieve detailed information about a specific hotel
+      operationId: getHotel
+      tags:
+        - Hotels
+      parameters:
+        - name: hotelID
+          in: path
+          description: Unique identifier of the hotel
+          required: true
+          schema:
+            type: integer
+            format: int32
+      responses:
+        "200":
+          description: Hotel details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Hotel"
+        "400":
+          description: Bad request - invalid hotel ID format
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Invalid hotel ID format"
+        "404":
+          description: Hotel not found
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Hotel with ID 123 not found"
+        "500":
+          description: Internal server error
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Internal server error"
+
+  /api/v1/hotels/{hotelID}/reviews:
+    get:
+      summary: Get Hotel Reviews
+      description: Retrieve all reviews for a specific hotel
+      operationId: getHotelReviews
+      tags:
+        - Reviews
+      parameters:
+        - name: hotelID
+          in: path
+          description: Unique identifier of the hotel
+          required: true
+          schema:
+            type: integer
+            format: int32
+      responses:
+        "200":
+          description: Hotel reviews retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  hotel_id:
+                    type: integer
+                    format: int32
+                    description: ID of the hotel
+                  reviews:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Review"
+                  count:
+                    type: integer
+                    description: Number of reviews returned
+                required:
+                  - hotel_id
+                  - reviews
+                  - count
+        "400":
+          description: Bad request - invalid hotel ID format
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Invalid hotel ID format"
+        "500":
+          description: Internal server error
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Internal server error"
+
+  /api/v1/hotels/{hotelID}/translations/{language}:
+    get:
+      summary: Get Hotel Translations
+      description: Retrieve translations for a specific hotel in a given language
+      operationId: getHotelTranslations
+      tags:
+        - Translations
+      parameters:
+        - name: hotelID
+          in: path
+          description: Unique identifier of the hotel
+          required: true
+          schema:
+            type: integer
+            format: int32
+        - name: language
+          in: path
+          description: Language code for translations
+          required: true
+          schema:
+            type: string
+            enum: [en, fr, es]
+            example: "fr"
+      responses:
+        "200":
+          description: Hotel translations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  hotel_id:
+                    type: integer
+                    format: int32
+                    description: ID of the hotel
+                  language:
+                    type: string
+                    description: Language code
+                    enum: [en, fr, es]
+                  translations:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Translation"
+                  count:
+                    type: integer
+                    description: Number of translations returned
+                required:
+                  - hotel_id
+                  - language
+                  - translations
+                  - count
+        "400":
+          description: Bad request - invalid hotel ID format or unsupported language
+          content:
+            text/plain:
+              schema:
+                type: string
+              examples:
+                invalid_hotel_id:
+                  value: "Invalid hotel ID format"
+                unsupported_language:
+                  value: "Unsupported language code. Supported: fr, es, en"
+        "500":
+          description: Internal server error
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Internal server error"
+
+components:
+  schemas:
+    HotelSummary:
+      type: object
+      description: Summary information about a hotel
+      properties:
+        hotel_id:
+          type: integer
+          format: int32
+          description: Unique identifier of the hotel
+        cupid_id:
+          type: integer
+          format: int32
+          description: Cupid API identifier
+        hotel_name:
+          type: string
+          description: Name of the hotel
+        rating:
+          type: number
+          format: float
+          description: Average rating of the hotel
+        review_count:
+          type: integer
+          format: int32
+          description: Number of reviews
+        stars:
+          type: integer
+          format: int32
+          description: Star rating of the hotel
+        latitude:
+          type: number
+          format: double
+          description: Latitude coordinate
+        longitude:
+          type: number
+          format: double
+          description: Longitude coordinate
+        hotel_type:
+          type: string
+          description: Type of hotel
+        chain:
+          type: string
+          description: Hotel chain name
+      required:
+        - hotel_id
+        - cupid_id
+        - hotel_name
+        - rating
+        - review_count
+
+    Hotel:
+      type: object
+      description: Complete hotel information
+      properties:
+        hotel_id:
+          type: integer
+          format: int32
+          description: Unique identifier of the hotel
+        cupid_id:
+          type: integer
+          format: int32
+          description: Cupid API identifier
+        hotel_name:
+          type: string
+          description: Name of the hotel
+        rating:
+          type: number
+          format: float
+          description: Average rating of the hotel
+        review_count:
+          type: integer
+          format: int32
+          description: Number of reviews
+      required:
+        - hotel_id
+        - cupid_id
+        - hotel_name
+        - rating
+        - review_count
+
+    Review:
+      type: object
+      description: Hotel review information
+      properties:
+        id:
+          type: integer
+          format: int32
+          description: Unique identifier of the review
+        hotel_id:
+          type: integer
+          format: int32
+          description: ID of the hotel
+        reviewer_name:
+          type: string
+          description: Name of the reviewer
+        rating:
+          type: integer
+          format: int32
+          description: Rating given by the reviewer
+        title:
+          type: string
+          description: Title of the review
+        content:
+          type: string
+          description: Content of the review
+        language_code:
+          type: string
+          description: Language code of the review
+        review_date:
+          type: string
+          format: date-time
+          description: Date when the review was written
+        helpful_votes:
+          type: integer
+          format: int32
+          description: Number of helpful votes
+        created_at:
+          type: string
+          format: date-time
+          description: When the review was created in the system
+      required:
+        - id
+        - hotel_id
+        - reviewer_name
+        - rating
+        - title
+        - content
+        - language_code
+        - review_date
+        - helpful_votes
+        - created_at
+
+    Translation:
+      type: object
+      description: Translation information for hotel content
+      properties:
+        id:
+          type: integer
+          format: int32
+          description: Unique identifier of the translation
+        entity_type:
+          type: string
+          description: Type of entity being translated
+          example: "hotel"
+        entity_id:
+          type: integer
+          format: int32
+          description: ID of the entity being translated
+        language_code:
+          type: string
+          description: Language code of the translation
+          enum: [en, fr, es]
+        field_name:
+          type: string
+          description: Name of the field being translated
+        translated_text:
+          type: string
+          description: The translated text content
+        created_at:
+          type: string
+          format: date-time
+          description: When the translation was created
+        updated_at:
+          type: string
+          format: date-time
+          description: When the translation was last updated
+      required:
+        - id
+        - entity_type
+        - entity_id
+        - language_code
+        - field_name
+        - translated_text
+        - created_at
+        - updated_at
+
+    Error:
+      type: object
+      description: Error response
+      properties:
+        error:
+          type: string
+          description: Error message
+        code:
+          type: integer
+          format: int32
+          description: Error code
+      required:
+        - error
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Hotels
+    description: Hotel management endpoints
+  - name: Reviews
+    description: Hotel review endpoints
+  - name: Translations
+    description: Translation endpoints
