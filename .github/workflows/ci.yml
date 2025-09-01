@@ -161,16 +161,16 @@ jobs:
               run: |
                 timeout 30s bash -c 'until docker compose exec -T postgres pg_isready -U cupid -d cupid; do sleep 1; done'
 
-            - name: go-test
+            - name: Unit tests (fast)
               shell: bash
-              run: make test
+              run: make test-unit
 
-            - name: go-coverage
+            - name: Unit test coverage
               shell: bash
               run: |-
-                OUTPUT="$(make test-coverage)"
+                OUTPUT="$(make test-unit-coverage)"
                 TOTAL="$(echo $OUTPUT | awk 'END{print $NF}')"
-                echo "::group::Coverage (${TOTAL})"
+                echo "::group::Unit Test Coverage (${TOTAL})"
                 echo "${OUTPUT}"
                 echo "::endgroup::"
 
@@ -178,8 +178,18 @@ jobs:
               run: |
                 timeout 30s bash -c 'until docker compose exec -T redis redis-cli ping; do sleep 1; done'
 
-            - name: Redis integration tests
-              run: make test-redis-integration
+            - name: Integration tests (with services)
+              shell: bash
+              run: make test-integration
+
+            - name: Integration test coverage
+              shell: bash
+              run: |-
+                OUTPUT="$(make test-integration-coverage)"
+                TOTAL="$(echo $OUTPUT | awk 'END{print $NF}')"
+                echo "::group::Integration Test Coverage (${TOTAL})"
+                echo "${OUTPUT}"
+                echo "::endgroup::"
 
             - name: Cleanup docker-compose
               if: always()

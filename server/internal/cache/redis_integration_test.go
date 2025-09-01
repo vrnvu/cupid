@@ -1,5 +1,4 @@
 //go:build integration
-// +build integration
 
 package cache
 
@@ -14,65 +13,76 @@ import (
 	"github.com/vrnvu/cupid/internal/client"
 )
 
-// TestRedisCache_Integration runs only when Redis is available
-// Run with: go test -tags=integration ./internal/cache/...
 func TestRedisCache_Integration(t *testing.T) {
 	t.Parallel()
 
 	redisCache := NewRedisCache("localhost:6379")
 	ctx := context.Background()
 
-	// Skip if Redis is not available
 	if err := redisCache.Ping(ctx); err != nil {
 		t.Skip("Redis not available, skipping integration test")
 	}
 	defer redisCache.Close()
 
-	// Use random hotel ID to avoid conflicts
-	hotelID := rand.Intn(1000000) + 6000000 //nolint:gosec // Test data only
-	reviews := []client.Review{
+	// Generate random data - don't assume clean state
+	hotelID := rand.Intn(1000000) + 1000000   //nolint:gosec // Test data only
+	reviewID1 := rand.Intn(1000000) + 1000000 //nolint:gosec // Test data only
+	reviewID2 := rand.Intn(1000000) + 2000000 //nolint:gosec // Test data only
+
+	expectedReviews := []client.Review{
 		{
-			ID:           1,
+			ID:           reviewID1,
 			HotelID:      hotelID,
-			ReviewerName: "Integration Test User",
+			ReviewerName: "John Doe",
 			Rating:       5,
-			Title:        "Integration Test Review",
-			Content:      "This is an integration test",
+			Title:        "Great hotel!",
+			Content:      "Amazing experience",
 			LanguageCode: "en",
-			ReviewDate:   "2024-01-01",
-			HelpfulVotes: 0,
-			CreatedAt:    "2024-01-01T00:00:00Z",
+			ReviewDate:   "2024-01-15",
+			HelpfulVotes: 10,
+			CreatedAt:    "2024-01-15T10:00:00Z",
+		},
+		{
+			ID:           reviewID2,
+			HotelID:      hotelID,
+			ReviewerName: "Jane Smith",
+			Rating:       4,
+			Title:        "Good stay",
+			Content:      "Nice hotel with good service",
+			LanguageCode: "en",
+			ReviewDate:   "2024-01-14",
+			HelpfulVotes: 5,
+			CreatedAt:    "2024-01-14T15:30:00Z",
 		},
 	}
 
-	// Clean up any existing data
-	_ = redisCache.DeleteReviews(ctx, hotelID)
-
-	// Test full cycle: Set -> Get -> Delete -> Get
-	err := redisCache.SetReviews(ctx, hotelID, reviews, 10*time.Second)
-	require.NoError(t, err)
-
-	// Verify they were set
-	cachedReviews, err := redisCache.GetReviews(ctx, hotelID)
-	assert.NoError(t, err)
-	assert.Equal(t, reviews, cachedReviews)
-
-	// Delete them
-	err = redisCache.DeleteReviews(ctx, hotelID)
-	assert.NoError(t, err)
-
-	// Verify they're gone
-	cachedReviews, err = redisCache.GetReviews(ctx, hotelID)
-	assert.NoError(t, err)
-	assert.Nil(t, cachedReviews)
-
-	// Clean up after test
+	// Don't assume clean state - clean up after ourselves
 	t.Cleanup(func() {
 		_ = redisCache.DeleteReviews(ctx, hotelID)
 	})
+
+	// Test cache miss - don't assume it's empty
+	reviews, err := redisCache.GetReviews(ctx, hotelID)
+	assert.NoError(t, err)
+	// Note: we don't assert it's nil because the database might be dirty
+
+	// Test set and get
+	err = redisCache.SetReviews(ctx, hotelID, expectedReviews, 5*time.Second)
+	require.NoError(t, err)
+
+	reviews, err = redisCache.GetReviews(ctx, hotelID)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedReviews, reviews)
+
+	// Test deletion
+	err = redisCache.DeleteReviews(ctx, hotelID)
+	assert.NoError(t, err)
+
+	reviews, err = redisCache.GetReviews(ctx, hotelID)
+	assert.NoError(t, err)
+	assert.Nil(t, reviews)
 }
 
-// TestRedisCache_ConcurrentAccess tests concurrent access to Redis
 func TestRedisCache_ConcurrentAccess(t *testing.T) {
 	t.Parallel()
 
@@ -84,44 +94,46 @@ func TestRedisCache_ConcurrentAccess(t *testing.T) {
 	}
 	defer redisCache.Close()
 
-	// Test concurrent access with different hotel IDs
+	// Generate random data - don't assume clean state
+	hotelID := rand.Intn(1000000) + 2000000 //nolint:gosec // Test data only
+	reviewID := rand.Intn(1000000) + 3000000
+
+	reviews := []client.Review{
+		{
+			ID:           reviewID,
+			HotelID:      hotelID,
+			ReviewerName: "Concurrent User",
+			Rating:       5,
+			Title:        "Concurrent Test",
+			Content:      "Testing concurrent access",
+			LanguageCode: "en",
+			ReviewDate:   "2024-01-01",
+			HelpfulVotes: 0,
+			CreatedAt:    "2024-01-01T00:00:00Z",
+		},
+	}
+
+	// Don't assume clean state - clean up after ourselves
+	t.Cleanup(func() {
+		_ = redisCache.DeleteReviews(ctx, hotelID)
+	})
+
+	// Test concurrent reads and writes
 	const numGoroutines = 10
 	done := make(chan bool, numGoroutines)
 
 	for i := 0; i < numGoroutines; i++ {
-		go func(goroutineID int) {
+		go func(id int) {
 			defer func() { done <- true }()
 
-			hotelID := rand.Intn(1000000) + 7000000 + goroutineID //nolint:gosec // Test data only
-			reviews := []client.Review{
-				{
-					ID:           goroutineID,
-					HotelID:      hotelID,
-					ReviewerName: "Concurrent Test User",
-					Rating:       4,
-					Title:        "Concurrent Test Review",
-					Content:      "This is a concurrent test",
-					LanguageCode: "en",
-					ReviewDate:   "2024-01-01",
-					HelpfulVotes: 0,
-					CreatedAt:    "2024-01-01T00:00:00Z",
-				},
-			}
-
-			// Clean up any existing data
-			_ = redisCache.DeleteReviews(ctx, hotelID)
-
 			// Set reviews
-			err := redisCache.SetReviews(ctx, hotelID, reviews, 5*time.Second)
+			err := redisCache.SetReviews(ctx, hotelID, reviews, 10*time.Second)
 			assert.NoError(t, err)
 
 			// Get reviews
 			cachedReviews, err := redisCache.GetReviews(ctx, hotelID)
 			assert.NoError(t, err)
 			assert.Equal(t, reviews, cachedReviews)
-
-			// Clean up
-			_ = redisCache.DeleteReviews(ctx, hotelID)
 		}(i)
 	}
 

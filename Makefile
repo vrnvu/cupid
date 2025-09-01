@@ -8,6 +8,27 @@ test:
 		-coverprofile=coverage.out
 .PHONY: test
 
+test-unit:
+	@cd server && go test \
+		-shuffle=on \
+		-count=1 \
+		-short \
+		-timeout=5m \
+		-tags=unit \
+		./... \
+		-coverprofile=coverage.out
+.PHONY: test-unit
+
+test-integration:
+	@cd server && go test \
+		-shuffle=on \
+		-count=1 \
+		-timeout=10m \
+		-tags=integration \
+		./... \
+		-coverprofile=coverage.integration.out
+.PHONY: test-integration
+
 build-server:
 	@mkdir -p bin
 	@cd server && go build -o ../bin/server ./cmd/server
@@ -94,10 +115,17 @@ test-coverage:
 	@cd server && go tool cover -func=./coverage.out
 .PHONY: test-coverage
 
+test-unit-coverage:
+	@cd server && go tool cover -func=./coverage.out
+.PHONY: test-unit-coverage
+
+test-integration-coverage:
+	@cd server && go tool cover -func=./coverage.integration.out
+.PHONY: test-integration-coverage
+
 test-redis-integration:
 	@cd server && go test -tags=integration ./internal/cache/... -v
 .PHONY: test-redis-integration
-
 test-ai-integration:
 	@cd server && go test -tags=integration ./internal/ai/... -v
 .PHONY: test-ai-integration
