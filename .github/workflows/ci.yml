@@ -156,7 +156,7 @@ jobs:
 
             - name: Start docker-compose services
               run: docker compose down -v && docker compose up -d
-
+                
             - name: Wait for database to be ready
               run: |
                 timeout 30s bash -c 'until docker compose exec -T postgres pg_isready -U cupid -d cupid; do sleep 1; done'
