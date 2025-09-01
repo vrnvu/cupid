@@ -29,7 +29,7 @@ func TestRedisCache_Integration(t *testing.T) {
 	defer redisCache.Close()
 
 	// Use random hotel ID to avoid conflicts
-	hotelID := rand.Intn(1000000) + 6000000
+	hotelID := rand.Intn(1000000) + 6000000 //nolint:gosec // Test data only
 	reviews := []client.Review{
 		{
 			ID:           1,
@@ -92,7 +92,7 @@ func TestRedisCache_ConcurrentAccess(t *testing.T) {
 		go func(goroutineID int) {
 			defer func() { done <- true }()
 
-			hotelID := rand.Intn(1000000) + 7000000 + goroutineID
+			hotelID := rand.Intn(1000000) + 7000000 + goroutineID //nolint:gosec // Test data only
 			reviews := []client.Review{
 				{
 					ID:           goroutineID,

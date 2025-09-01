@@ -22,7 +22,7 @@ func TestRedisCache_GetReviews(t *testing.T) {
 	}
 	defer redisCache.Close()
 
-	hotelID := rand.Intn(1000000) + 1000000
+	hotelID := rand.Intn(1000000) + 1000000 //nolint:gosec // Test data only
 	expectedReviews := []client.Review{
 		{
 			ID:           1,
@@ -79,7 +79,7 @@ func TestRedisCache_SetReviews(t *testing.T) {
 	}
 	defer redisCache.Close()
 
-	hotelID := rand.Intn(1000000) + 2000000
+	hotelID := rand.Intn(1000000) + 2000000 //nolint:gosec // Test data only
 	reviews := []client.Review{
 		{
 			ID:           1,
@@ -120,7 +120,7 @@ func TestRedisCache_DeleteReviews(t *testing.T) {
 	}
 	defer redisCache.Close()
 
-	hotelID := rand.Intn(1000000) + 3000000
+	hotelID := rand.Intn(1000000) + 3000000 //nolint:gosec // Test data only
 	reviews := []client.Review{
 		{
 			ID:           1,
@@ -197,7 +197,7 @@ func TestRedisCache_EmptyReviews(t *testing.T) {
 	}
 	defer redisCache.Close()
 
-	hotelID := rand.Intn(1000000) + 4000000
+	hotelID := rand.Intn(1000000) + 4000000 //nolint:gosec // Test data only
 	emptyReviews := []client.Review{}
 
 	_ = redisCache.DeleteReviews(ctx, hotelID)
@@ -225,7 +225,7 @@ func TestRedisCache_TTL(t *testing.T) {
 	}
 	defer redisCache.Close()
 
-	hotelID := rand.Intn(1000000) + 5000000
+	hotelID := rand.Intn(1000000) + 5000000 //nolint:gosec // Test data only
 	reviews := []client.Review{
 		{
 			ID:           1,

@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -34,7 +35,7 @@ func (r *RedisCache) GetReviews(ctx context.Context, hotelID int) ([]client.Revi
 	key := fmt.Sprintf("reviews:hotel:%d", hotelID)
 
 	val, err := r.client.Get(ctx, key).Result()
-	if err == redis.Nil {
+	if errors.Is(err, redis.Nil) {
 		return nil, nil // Cache miss
 	}
 	if err != nil {
