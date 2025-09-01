@@ -24,8 +24,20 @@ func NewServer(repository database.Repository) http.Handler {
 		handler := telemetry.NewHandler(http.HandlerFunc(server.healthHandler), "HealthCheck")
 		handler.ServeHTTP(w, r)
 	})
+	mux.HandleFunc("GET /api/v1/hotels", func(w http.ResponseWriter, r *http.Request) {
+		handler := telemetry.NewHandler(http.HandlerFunc(server.getHotelsHandler), "HotelsHandler")
+		handler.ServeHTTP(w, r)
+	})
 	mux.HandleFunc("GET /api/v1/hotels/{hotelID}", func(w http.ResponseWriter, r *http.Request) {
 		handler := telemetry.NewHandler(http.HandlerFunc(server.getHotelHandler), "HotelHandler")
+		handler.ServeHTTP(w, r)
+	})
+	mux.HandleFunc("GET /api/v1/hotels/{hotelID}/reviews", func(w http.ResponseWriter, r *http.Request) {
+		handler := telemetry.NewHandler(http.HandlerFunc(server.getHotelReviewsHandler), "HotelReviewsHandler")
+		handler.ServeHTTP(w, r)
+	})
+	mux.HandleFunc("GET /api/v1/hotels/{hotelID}/translations/{language}", func(w http.ResponseWriter, r *http.Request) {
+		handler := telemetry.NewHandler(http.HandlerFunc(server.getHotelTranslationsHandler), "HotelTranslationsHandler")
 		handler.ServeHTTP(w, r)
 	})
 
@@ -49,6 +61,45 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(map[string]string{
 		"status":  "healthy",
 		"service": "cupid-api",
+	}); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *Server) getHotelsHandler(w http.ResponseWriter, r *http.Request) {
+	limitStr := r.URL.Query().Get("limit")
+	offsetStr := r.URL.Query().Get("offset")
+
+	limit := 50
+	offset := 0
+
+	if limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 100 {
+			limit = l
+		}
+	}
+
+	if offsetStr != "" {
+		if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
+			offset = o
+		}
+	}
+
+	ctx := r.Context()
+	hotels, err := s.repository.GetHotels(ctx, limit, offset)
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"hotels": hotels,
+		"count":  len(hotels),
+		"limit":  limit,
+		"offset": offset,
 	}); err != nil {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
@@ -82,6 +133,84 @@ func (s *Server) getHotelHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(hotel); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *Server) getHotelReviewsHandler(w http.ResponseWriter, r *http.Request) {
+	hotelIDStr := r.PathValue("hotelID")
+	if hotelIDStr == "" {
+		http.Error(w, "Invalid hotel ID", http.StatusBadRequest)
+		return
+	}
+
+	hotelID, err := strconv.Atoi(hotelIDStr)
+	if err != nil {
+		http.Error(w, "Invalid hotel ID format", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+	reviews, err := s.repository.GetHotelReviews(ctx, hotelID)
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"hotel_id": hotelID,
+		"reviews":  reviews,
+		"count":    len(reviews),
+	}); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *Server) getHotelTranslationsHandler(w http.ResponseWriter, r *http.Request) {
+	hotelIDStr := r.PathValue("hotelID")
+	if hotelIDStr == "" {
+		http.Error(w, "Invalid hotel ID", http.StatusBadRequest)
+		return
+	}
+
+	hotelID, err := strconv.Atoi(hotelIDStr)
+	if err != nil {
+		http.Error(w, "Invalid hotel ID format", http.StatusBadRequest)
+		return
+	}
+
+	languageCode := r.PathValue("language")
+	if languageCode == "" {
+		http.Error(w, "Invalid language code", http.StatusBadRequest)
+		return
+	}
+
+	// Validate language code
+	validLanguages := map[string]bool{"fr": true, "es": true, "en": true}
+	if !validLanguages[languageCode] {
+		http.Error(w, "Unsupported language code. Supported: fr, es, en", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+	translations, err := s.repository.GetHotelTranslations(ctx, hotelID, languageCode)
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"hotel_id":     hotelID,
+		"language":     languageCode,
+		"translations": translations,
+		"count":        len(translations),
+	}); err != nil {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
 	}

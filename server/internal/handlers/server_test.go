@@ -3,207 +3,282 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/vrnvu/cupid/internal/client"
 	"github.com/vrnvu/cupid/internal/database"
 )
 
-type mockHotelRepository struct {
-	hotels  map[int]*client.Property
-	pingErr error
+// MockRepository is a mock implementation of the Repository interface
+type MockRepository struct {
+	mock.Mock
 }
 
-func (m *mockHotelRepository) StoreProperty(_ context.Context, _ *client.Property) error {
-	return nil
+func (m *MockRepository) StoreProperty(ctx context.Context, property *client.Property) error {
+	args := m.Called(ctx, property)
+	return args.Error(0)
 }
 
-func (m *mockHotelRepository) GetHotelByID(_ context.Context, hotelID int) (*client.Property, error) {
-	if hotel, exists := m.hotels[hotelID]; exists {
-		return hotel, nil
+func (m *MockRepository) StoreReviews(ctx context.Context, hotelID int, reviews []client.Review) error {
+	args := m.Called(ctx, hotelID, reviews)
+	return args.Error(0)
+}
+
+func (m *MockRepository) StoreTranslations(ctx context.Context, hotelID int, translations []client.Translation) error {
+	args := m.Called(ctx, hotelID, translations)
+	return args.Error(0)
+}
+
+func (m *MockRepository) GetHotels(ctx context.Context, limit, offset int) ([]client.Property, error) {
+	args := m.Called(ctx, limit, offset)
+	return args.Get(0).([]client.Property), args.Error(1)
+}
+
+func (m *MockRepository) GetHotelByID(ctx context.Context, hotelID int) (*client.Property, error) {
+	args := m.Called(ctx, hotelID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
 	}
-	return nil, database.ErrHotelNotFound
+	return args.Get(0).(*client.Property), args.Error(1)
 }
 
-func (m *mockHotelRepository) Ping(_ context.Context) error {
-	return m.pingErr
+func (m *MockRepository) GetHotelReviews(ctx context.Context, hotelID int) ([]client.Review, error) {
+	args := m.Called(ctx, hotelID)
+	return args.Get(0).([]client.Review), args.Error(1)
 }
 
-func TestHealthHandler(t *testing.T) {
+func (m *MockRepository) GetHotelTranslations(ctx context.Context, hotelID int, languageCode string) ([]client.Translation, error) {
+	args := m.Called(ctx, hotelID, languageCode)
+	return args.Get(0).([]client.Translation), args.Error(1)
+}
+
+func (m *MockRepository) Ping(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+func TestServer_HealthHandler(t *testing.T) {
 	t.Parallel()
-
-	testCases := []struct {
-		name       string
-		method     string
-		pingErr    error
-		wantStatus int
-		wantBody   map[string]string
+	tests := []struct {
+		name           string
+		method         string
+		pingError      error
+		expectedStatus int
+		expectedBody   map[string]string
 	}{
 		{
-			name:       "healthy service",
-			method:     http.MethodGet,
-			pingErr:    nil,
-			wantStatus: http.StatusOK,
-			wantBody: map[string]string{
+			name:           "healthy database",
+			method:         "GET",
+			pingError:      nil,
+			expectedStatus: http.StatusOK,
+			expectedBody: map[string]string{
 				"status":  "healthy",
 				"service": "cupid-api",
 			},
 		},
 		{
-			name:       "database connection failed",
-			method:     http.MethodGet,
-			pingErr:    database.ErrDatabaseConnection,
-			wantStatus: http.StatusServiceUnavailable,
-			wantBody:   nil,
+			name:           "unhealthy database",
+			method:         "GET",
+			pingError:      errors.New("connection failed"),
+			expectedStatus: http.StatusServiceUnavailable,
+			expectedBody:   nil,
 		},
 		{
-			name:       "method not allowed",
-			method:     http.MethodPost,
-			pingErr:    nil,
-			wantStatus: http.StatusMethodNotAllowed,
-			wantBody:   nil,
+			name:           "method not allowed",
+			method:         "POST",
+			pingError:      nil,
+			expectedStatus: http.StatusMethodNotAllowed,
+			expectedBody:   nil,
 		},
 	}
 
-	for _, tc := range testCases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			mockRepo := new(MockRepository)
 
-			mockRepo := &mockHotelRepository{pingErr: tc.pingErr}
-			server := NewServer(mockRepo)
-
-			req, err := http.NewRequestWithContext(context.Background(), tc.method, "/health", nil)
-			if err != nil {
-				t.Fatalf("failed to create request: %v", err)
+			// Only set up Ping mock expectation if the method is GET
+			// For method not allowed, Ping should not be called
+			if tt.method == "GET" {
+				mockRepo.On("Ping", mock.Anything).Return(tt.pingError)
 			}
 
-			rec := httptest.NewRecorder()
-			server.ServeHTTP(rec, req)
+			server := &Server{repository: mockRepo}
+			req := httptest.NewRequest(tt.method, "/health", nil)
+			w := httptest.NewRecorder()
 
-			if rec.Code != tc.wantStatus {
-				t.Fatalf("unexpected status code: got %d, want %d", rec.Code, tc.wantStatus)
-			}
+			server.healthHandler(w, req)
 
-			if tc.wantBody != nil {
+			assert.Equal(t, tt.expectedStatus, w.Code)
+
+			if tt.expectedBody != nil {
 				var response map[string]string
-				if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
-					t.Fatalf("failed to decode response: %v", err)
-				}
-
-				for key, expectedValue := range tc.wantBody {
-					if response[key] != expectedValue {
-						t.Errorf("unexpected value for %s: got %s, want %s", key, response[key], expectedValue)
-					}
-				}
+				err := json.Unmarshal(w.Body.Bytes(), &response)
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedBody, response)
 			}
+
+			mockRepo.AssertExpectations(t)
 		})
 	}
 }
 
-func TestHotelHandler(t *testing.T) {
+func TestServer_GetHotelHandler(t *testing.T) {
 	t.Parallel()
-
-	mockHotels := map[int]*client.Property{
-		1641879: {
-			HotelID:     1641879,
-			CupidID:     12345,
-			HotelName:   "Test Hotel",
-			Rating:      4.5,
-			ReviewCount: 150,
-		},
-	}
-
-	testCases := []struct {
-		name       string
-		method     string
-		hotelID    string
-		wantStatus int
-		wantHotel  *client.Property
+	tests := []struct {
+		name           string
+		hotelID        string
+		hotel          *client.Property
+		repoError      error
+		expectedStatus int
 	}{
 		{
-			name:       "get existing hotel",
-			method:     http.MethodGet,
-			hotelID:    "1641879",
-			wantStatus: http.StatusOK,
-			wantHotel:  mockHotels[1641879],
+			name:    "successful request",
+			hotelID: "123",
+			hotel: &client.Property{
+				HotelID:   123,
+				HotelName: "Test Hotel",
+				Rating:    4.5,
+			},
+			repoError:      nil,
+			expectedStatus: http.StatusOK,
 		},
 		{
-			name:       "hotel not found",
-			method:     http.MethodGet,
-			hotelID:    "999999",
-			wantStatus: http.StatusNotFound,
-			wantHotel:  nil,
+			name:           "hotel not found",
+			hotelID:        "999",
+			hotel:          nil,
+			repoError:      database.ErrHotelNotFound,
+			expectedStatus: http.StatusNotFound,
 		},
 		{
-			name:       "invalid hotel ID format",
-			method:     http.MethodGet,
-			hotelID:    "invalid",
-			wantStatus: http.StatusBadRequest,
-			wantHotel:  nil,
+			name:           "invalid hotel ID",
+			hotelID:        "invalid",
+			hotel:          nil,
+			repoError:      nil,
+			expectedStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "method not allowed",
-			method:     http.MethodPost,
-			hotelID:    "1641879",
-			wantStatus: http.StatusMethodNotAllowed,
-			wantHotel:  nil,
-		},
-		{
-			name:       "missing hotel ID",
-			method:     http.MethodGet,
-			hotelID:    "",
-			wantStatus: http.StatusNotFound,
-			wantHotel:  nil,
+			name:           "repository error",
+			hotelID:        "123",
+			hotel:          nil,
+			repoError:      errors.New("database error"),
+			expectedStatus: http.StatusInternalServerError,
 		},
 	}
 
-	for _, tc := range testCases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-
-			mockRepo := &mockHotelRepository{hotels: mockHotels}
-			server := NewServer(mockRepo)
-
-			url := "/api/v1/hotels/"
-			if tc.hotelID != "" {
-				url += tc.hotelID
+			mockRepo := new(MockRepository)
+			if tt.hotelID != "invalid" {
+				hotelID := 123
+				if tt.hotelID == "999" {
+					hotelID = 999
+				}
+				mockRepo.On("GetHotelByID", mock.Anything, hotelID).Return(tt.hotel, tt.repoError)
 			}
 
-			req, err := http.NewRequestWithContext(context.Background(), tc.method, url, nil)
-			if err != nil {
-				t.Fatalf("failed to create request: %v", err)
-			}
+			server := &Server{repository: mockRepo}
+			req := httptest.NewRequest("GET", "/api/v1/hotels/"+tt.hotelID, nil)
+			req.SetPathValue("hotelID", tt.hotelID)
+			w := httptest.NewRecorder()
 
-			rec := httptest.NewRecorder()
-			server.ServeHTTP(rec, req)
+			server.getHotelHandler(w, req)
 
-			if rec.Code != tc.wantStatus {
-				t.Fatalf("unexpected status code: got %d, want %d", rec.Code, tc.wantStatus)
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
 
-			if tc.wantHotel != nil {
+			if tt.expectedStatus == http.StatusOK {
 				var response client.Property
-				if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
-					t.Fatalf("failed to decode response: %v", err)
-				}
-
-				if response.HotelID != tc.wantHotel.HotelID {
-					t.Errorf("unexpected hotel ID: got %d, want %d", response.HotelID, tc.wantHotel.HotelID)
-				}
-				if response.HotelName != tc.wantHotel.HotelName {
-					t.Errorf("unexpected hotel name: got %s, want %s", response.HotelName, tc.wantHotel.HotelName)
-				}
-				if response.Rating != tc.wantHotel.Rating {
-					t.Errorf("unexpected rating: got %f, want %f", response.Rating, tc.wantHotel.Rating)
-				}
-				if response.ReviewCount != tc.wantHotel.ReviewCount {
-					t.Errorf("unexpected review count: got %d, want %d", response.ReviewCount, tc.wantHotel.ReviewCount)
-				}
+				err := json.Unmarshal(w.Body.Bytes(), &response)
+				assert.NoError(t, err)
+				assert.Equal(t, tt.hotel.HotelID, response.HotelID)
+				assert.Equal(t, tt.hotel.HotelName, response.HotelName)
 			}
+
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}
+
+func TestServer_GetHotelReviewsHandler(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name           string
+		hotelID        string
+		reviews        []client.Review
+		repoError      error
+		expectedStatus int
+		expectedCount  int
+	}{
+		{
+			name:    "successful request with reviews",
+			hotelID: "123",
+			reviews: []client.Review{
+				{ReviewerName: "John", Rating: 5, Title: "Great!"},
+				{ReviewerName: "Jane", Rating: 4, Title: "Good"},
+			},
+			repoError:      nil,
+			expectedStatus: http.StatusOK,
+			expectedCount:  2,
+		},
+		{
+			name:           "successful request with no reviews",
+			hotelID:        "123",
+			reviews:        []client.Review{},
+			repoError:      nil,
+			expectedStatus: http.StatusOK,
+			expectedCount:  0,
+		},
+		{
+			name:           "invalid hotel ID",
+			hotelID:        "invalid",
+			reviews:        nil,
+			repoError:      nil,
+			expectedStatus: http.StatusBadRequest,
+			expectedCount:  0,
+		},
+		{
+			name:           "repository error",
+			hotelID:        "123",
+			reviews:        nil,
+			repoError:      errors.New("database error"),
+			expectedStatus: http.StatusInternalServerError,
+			expectedCount:  0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			mockRepo := new(MockRepository)
+			if tt.hotelID != "invalid" {
+				hotelID := 123
+				mockRepo.On("GetHotelReviews", mock.Anything, hotelID).Return(tt.reviews, tt.repoError)
+			}
+
+			server := &Server{repository: mockRepo}
+			req := httptest.NewRequest("GET", "/api/v1/hotels/"+tt.hotelID+"/reviews", nil)
+			req.SetPathValue("hotelID", tt.hotelID)
+			w := httptest.NewRecorder()
+
+			server.getHotelReviewsHandler(w, req)
+
+			assert.Equal(t, tt.expectedStatus, w.Code)
+
+			if tt.expectedStatus == http.StatusOK {
+				var response map[string]interface{}
+				err := json.Unmarshal(w.Body.Bytes(), &response)
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedCount, int(response["count"].(float64)))
+				assert.Equal(t, 123, int(response["hotel_id"].(float64)))
+			}
+
+			mockRepo.AssertExpectations(t)
 		})
 	}
 }

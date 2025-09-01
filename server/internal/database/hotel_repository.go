@@ -19,7 +19,12 @@ var (
 
 type Repository interface {
 	StoreProperty(ctx context.Context, property *client.Property) error
+	StoreReviews(ctx context.Context, hotelID int, reviews []client.Review) error
+	StoreTranslations(ctx context.Context, hotelID int, translations []client.Translation) error
+	GetHotels(ctx context.Context, limit, offset int) ([]client.Property, error)
 	GetHotelByID(ctx context.Context, hotelID int) (*client.Property, error)
+	GetHotelReviews(ctx context.Context, hotelID int) ([]client.Review, error)
+	GetHotelTranslations(ctx context.Context, hotelID int, languageCode string) ([]client.Translation, error)
 	Ping(ctx context.Context) error
 }
 
@@ -36,9 +41,13 @@ func (r *HotelRepository) StoreProperty(ctx context.Context, property *client.Pr
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
+
+	committed := false
 	defer func() {
-		if rbErr := tx.Rollback(); rbErr != nil {
-			log.Printf("failed to rollback transaction: %v", rbErr)
+		if !committed {
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				log.Printf("failed to rollback transaction: %v", rbErr)
+			}
 		}
 	}()
 
@@ -71,7 +80,12 @@ func (r *HotelRepository) StoreProperty(ctx context.Context, property *client.Pr
 		return fmt.Errorf("failed to store rooms: %w", err)
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	committed = true
+	return nil
 }
 
 func (r *HotelRepository) storeHotel(ctx context.Context, tx *sql.Tx, property *client.Property) (int, error) {
@@ -381,7 +395,7 @@ func (r *HotelRepository) storeRoomAmenitiesBatch(ctx context.Context, tx *sql.T
 		args[i*4] = roomID
 		args[i*4+1] = amenity.AmenitiesID
 		args[i*4+2] = amenity.Name
-		args[i*4+3] = amenity.Sort
+		args[i*4+3] = amenity.SortOrder
 	}
 
 	query += strings.Join(values, ", ")
@@ -421,6 +435,41 @@ func (r *HotelRepository) storeRoomPhotosBatch(ctx context.Context, tx *sql.Tx, 
 	return err
 }
 
+func (r *HotelRepository) GetHotels(ctx context.Context, limit, offset int) ([]client.Property, error) {
+	query := `
+		SELECT hotel_id, cupid_id, hotel_name, rating, review_count, stars, 
+		       latitude, longitude, hotel_type, chain
+		FROM hotels 
+		ORDER BY hotel_id 
+		LIMIT $1 OFFSET $2`
+
+	rows, err := r.db.QueryContext(ctx, query, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query hotels: %w", err)
+	}
+	defer rows.Close()
+
+	var hotels []client.Property
+	for rows.Next() {
+		var hotel client.Property
+		err := rows.Scan(
+			&hotel.HotelID, &hotel.CupidID, &hotel.HotelName, &hotel.Rating,
+			&hotel.ReviewCount, &hotel.Stars, &hotel.Latitude, &hotel.Longitude,
+			&hotel.HotelType, &hotel.Chain,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan hotel: %w", err)
+		}
+		hotels = append(hotels, hotel)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating hotels: %w", err)
+	}
+
+	return hotels, nil
+}
+
 func (r *HotelRepository) GetHotelByID(ctx context.Context, hotelID int) (*client.Property, error) {
 	query := `SELECT hotel_id, cupid_id, hotel_name, rating, review_count FROM hotels WHERE hotel_id = $1`
 
@@ -439,4 +488,181 @@ func (r *HotelRepository) GetHotelByID(ctx context.Context, hotelID int) (*clien
 
 func (r *HotelRepository) Ping(ctx context.Context) error {
 	return r.db.Ping(ctx)
+}
+
+func (r *HotelRepository) GetHotelReviews(ctx context.Context, hotelID int) ([]client.Review, error) {
+	query := `
+		SELECT id, hotel_id, reviewer_name, rating, title, content, language_code, 
+		       review_date, helpful_votes, created_at
+		FROM reviews 
+		WHERE hotel_id = $1 
+		ORDER BY review_date DESC, created_at DESC`
+
+	rows, err := r.db.QueryContext(ctx, query, hotelID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query reviews: %w", err)
+	}
+	defer rows.Close()
+
+	var reviews []client.Review
+	for rows.Next() {
+		var review client.Review
+		err := rows.Scan(
+			&review.ID, &review.HotelID, &review.ReviewerName, &review.Rating,
+			&review.Title, &review.Content, &review.LanguageCode, &review.ReviewDate,
+			&review.HelpfulVotes, &review.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan review: %w", err)
+		}
+		reviews = append(reviews, review)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating reviews: %w", err)
+	}
+
+	return reviews, nil
+}
+
+func (r *HotelRepository) GetHotelTranslations(ctx context.Context, hotelID int, languageCode string) ([]client.Translation, error) {
+	query := `
+		SELECT id, entity_type, entity_id, language_code, field_name, 
+		       translated_text, created_at, updated_at
+		FROM translations 
+		WHERE entity_type = 'hotel' AND entity_id = $1 AND language_code = $2
+		ORDER BY field_name`
+
+	rows, err := r.db.QueryContext(ctx, query, hotelID, languageCode)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query translations: %w", err)
+	}
+	defer rows.Close()
+
+	var translations []client.Translation
+	for rows.Next() {
+		var translation client.Translation
+		err := rows.Scan(
+			&translation.ID, &translation.EntityType, &translation.EntityID,
+			&translation.LanguageCode, &translation.FieldName, &translation.TranslatedText,
+			&translation.CreatedAt, &translation.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan translation: %w", err)
+		}
+		translations = append(translations, translation)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating translations: %w", err)
+	}
+
+	return translations, nil
+}
+
+func (r *HotelRepository) StoreReviews(ctx context.Context, hotelID int, reviews []client.Review) error {
+	if len(reviews) == 0 {
+		return nil
+	}
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	committed := false
+	defer func() {
+		if !committed {
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				log.Printf("failed to rollback transaction: %v", rbErr)
+			}
+		}
+	}()
+
+	if _, err := tx.ExecContext(ctx, "DELETE FROM reviews WHERE hotel_id = $1", hotelID); err != nil {
+		return fmt.Errorf("failed to delete existing reviews: %w", err)
+	}
+
+	query := `
+		INSERT INTO reviews (hotel_id, reviewer_name, rating, title, content, language_code, review_date, helpful_votes)
+		VALUES `
+
+	values := make([]string, len(reviews))
+	args := make([]interface{}, len(reviews)*8)
+
+	for i, review := range reviews {
+		values[i] = fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
+			i*8+1, i*8+2, i*8+3, i*8+4, i*8+5, i*8+6, i*8+7, i*8+8)
+		args[i*8] = hotelID
+		args[i*8+1] = review.ReviewerName
+		args[i*8+2] = review.Rating
+		args[i*8+3] = review.Title
+		args[i*8+4] = review.Content
+		args[i*8+5] = review.LanguageCode
+		args[i*8+6] = review.ReviewDate
+		args[i*8+7] = review.HelpfulVotes
+	}
+
+	query += strings.Join(values, ", ")
+	_, err = tx.ExecContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("failed to insert reviews: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	committed = true
+	return nil
+}
+
+func (r *HotelRepository) StoreTranslations(ctx context.Context, hotelID int, translations []client.Translation) error {
+	if len(translations) == 0 {
+		return nil
+	}
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	committed := false
+	defer func() {
+		if !committed {
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				log.Printf("failed to rollback transaction: %v", rbErr)
+			}
+		}
+	}()
+
+	query := `
+		INSERT INTO translations (entity_type, entity_id, language_code, field_name, translated_text)
+		VALUES `
+
+	values := make([]string, len(translations))
+	args := make([]interface{}, len(translations)*5)
+
+	for i, translation := range translations {
+		values[i] = fmt.Sprintf("($%d, $%d, $%d, $%d, $%d)",
+			i*5+1, i*5+2, i*5+3, i*5+4, i*5+5)
+		args[i*5] = "hotel"
+		args[i*5+1] = hotelID
+		args[i*5+2] = translation.LanguageCode
+		args[i*5+3] = translation.FieldName
+		args[i*5+4] = translation.TranslatedText
+	}
+
+	query += strings.Join(values, ", ") + " ON CONFLICT (entity_type, entity_id, language_code, field_name) DO UPDATE SET translated_text = EXCLUDED.translated_text, updated_at = NOW()"
+	_, err = tx.ExecContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("failed to insert translations: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	committed = true
+	return nil
 }

@@ -112,11 +112,50 @@ type BedType struct {
 	ID       int    `json:"id"`
 }
 
-// RoomAmenity represents an amenity in a room
+// RoomAmenity represents a room amenity
 type RoomAmenity struct {
 	AmenitiesID int    `json:"amenities_id"`
 	Name        string `json:"name"`
-	Sort        int    `json:"sort"`
+	SortOrder   int    `json:"sort_order"`
+}
+
+// RoomPhoto represents a room photo
+type RoomPhoto struct {
+	URL              string  `json:"url"`
+	HDURL            string  `json:"hd_url"`
+	ImageDescription string  `json:"image_description"`
+	ImageClass1      string  `json:"image_class1"`
+	ImageClass2      string  `json:"image_class2"`
+	MainPhoto        bool    `json:"main_photo"`
+	Score            float64 `json:"score"`
+	ClassID          int     `json:"class_id"`
+	ClassOrder       int     `json:"class_order"`
+}
+
+// Review represents a hotel review
+type Review struct {
+	ID           int    `json:"id"`
+	HotelID      int    `json:"hotel_id"`
+	ReviewerName string `json:"reviewer_name"`
+	Rating       int    `json:"rating"`
+	Title        string `json:"title"`
+	Content      string `json:"content"`
+	LanguageCode string `json:"language_code"`
+	ReviewDate   string `json:"review_date"`
+	HelpfulVotes int    `json:"helpful_votes"`
+	CreatedAt    string `json:"created_at"`
+}
+
+// Translation represents a translation for hotel content
+type Translation struct {
+	ID             int    `json:"id"`
+	EntityType     string `json:"entity_type"`
+	EntityID       int    `json:"entity_id"`
+	LanguageCode   string `json:"language_code"`
+	FieldName      string `json:"field_name"`
+	TranslatedText string `json:"translated_text"`
+	CreatedAt      string `json:"created_at"`
+	UpdatedAt      string `json:"updated_at"`
 }
 
 // ParseProperty parses JSON data into a Property struct
@@ -131,4 +170,22 @@ func ParseProperty(data []byte) (*Property, error) {
 // JSON returns the Property as JSON bytes
 func (p *Property) JSON() ([]byte, error) {
 	return json.Marshal(p)
+}
+
+// ParseReviews parses JSON data into a slice of Review structs
+func ParseReviews(data []byte) ([]Review, error) {
+	var reviews []Review
+	if err := json.Unmarshal(data, &reviews); err != nil {
+		return nil, err
+	}
+	return reviews, nil
+}
+
+// ParseTranslations parses JSON data into a slice of Translation structs
+func ParseTranslations(data []byte) ([]Translation, error) {
+	var translations []Translation
+	if err := json.Unmarshal(data, &translations); err != nil {
+		return nil, err
+	}
+	return translations, nil
 }

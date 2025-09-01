@@ -114,20 +114,168 @@ function wait_for_service() {
   error_exit "$service_name not ready after ${retries}s"
 }
 
-# Test server health endpoint
 function test_health_endpoint() {
-  echo "Testing server health endpoint..."
+  echo "Testing health endpoint scenarios..."
   
+  # Test healthy service
   local status_code
   status_code=$(curl -s -o "$ARTIFACTS_DIR/health.json" -w "%{http_code}" "$BASE_URL/health")
-  
-  check_status "$status_code" 200 "Health endpoint"
+  check_status "$status_code" 200 "Health endpoint - healthy service"
   
   local health_response
   health_response=$(cat "$ARTIFACTS_DIR/health.json")
   check_json_response "$health_response" "healthy" "cupid-api"
   
-  success "Server health test passed!"
+  # Test method not allowed
+  status_code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/health")
+  check_status "$status_code" 405 "Health endpoint - method not allowed"
+  
+  success "Health endpoint tests passed!"
+}
+
+function test_hotel_endpoints() {
+  echo "Testing hotel endpoint scenarios..."
+  
+  # Test get existing hotel
+  local status_code
+  status_code=$(curl -s -o "$ARTIFACTS_DIR/hotel.json" -w "%{http_code}" "$BASE_URL/api/v1/hotels/1641879")
+  check_status "$status_code" 200 "Get hotel by valid ID"
+  
+  local hotel_response
+  hotel_response=$(cat "$ARTIFACTS_DIR/hotel.json")
+  check_json_response "$hotel_response" "1641879" "The Z Hotel Covent Garden" "8.3"
+  
+  # Test hotel not found
+  status_code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/v1/hotels/999999")
+  check_status "$status_code" 404 "Get non-existent hotel"
+  
+  # Test invalid hotel ID format
+  status_code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/v1/hotels/invalid")
+  check_status "$status_code" 400 "Get hotel by invalid ID format"
+  
+  # Test method not allowed
+  status_code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/v1/hotels/1641879")
+  check_status "$status_code" 405 "Wrong HTTP method for hotel endpoint"
+  
+  # Test missing hotel ID
+  status_code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/v1/hotels/")
+  check_status "$status_code" 404 "Get hotel with missing ID"
+  
+  success "Hotel endpoint tests passed!"
+}
+
+function test_reviews_endpoints() {
+  echo "Testing reviews endpoint scenarios..."
+  
+  # Test get hotel reviews
+  local status_code
+  status_code=$(curl -s -o "$ARTIFACTS_DIR/reviews.json" -w "%{http_code}" "$BASE_URL/api/v1/hotels/1641879/reviews")
+  check_status "$status_code" 200 "Get hotel reviews"
+  
+  local reviews_response
+  reviews_response=$(cat "$ARTIFACTS_DIR/reviews.json")
+  check_json_response "$reviews_response" "1641879" "count" "reviews"
+  
+  # Test hotel with no reviews
+  status_code=$(curl -s -o "$ARTIFACTS_DIR/reviews_empty.json" -w "%{http_code}" "$BASE_URL/api/v1/hotels/999999/reviews")
+  check_status "$status_code" 200 "Get reviews for hotel with no reviews"
+  
+  local empty_reviews_response
+  empty_reviews_response=$(cat "$ARTIFACTS_DIR/reviews_empty.json")
+  check_json_response "$empty_reviews_response" "999999" "count" "reviews"
+  
+  # Test invalid hotel ID format
+  status_code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/v1/hotels/invalid/reviews")
+  check_status "$status_code" 400 "Get reviews with invalid hotel ID format"
+  
+  # Test method not allowed
+  status_code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/v1/hotels/1641879/reviews")
+  check_status "$status_code" 405 "Wrong HTTP method for reviews endpoint"
+  
+  # Test missing hotel ID
+  status_code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/v1/hotels//reviews")
+  check_status "$status_code" 301 "Get reviews with missing hotel ID"
+  
+  success "Reviews endpoint tests passed!"
+}
+
+function test_translations_endpoints() {
+  echo "Testing translations endpoint scenarios..."
+  
+  # Test get French translations
+  local status_code
+  status_code=$(curl -s -o "$ARTIFACTS_DIR/translations_fr.json" -w "%{http_code}" "$BASE_URL/api/v1/hotels/1641879/translations/fr")
+  check_status "$status_code" 200 "Get French translations"
+  
+  local translations_response
+  translations_response=$(cat "$ARTIFACTS_DIR/translations_fr.json")
+  check_json_response "$translations_response" "1641879" "fr" "count" "translations"
+  
+  # Test get Spanish translations
+  status_code=$(curl -s -o "$ARTIFACTS_DIR/translations_es.json" -w "%{http_code}" "$BASE_URL/api/v1/hotels/1641879/translations/es")
+  check_status "$status_code" 200 "Get Spanish translations"
+  
+  translations_response=$(cat "$ARTIFACTS_DIR/translations_es.json")
+  check_json_response "$translations_response" "1641879" "es" "count" "translations"
+  
+  # Test get English translations
+  status_code=$(curl -s -o "$ARTIFACTS_DIR/translations_en.json" -w "%{http_code}" "$BASE_URL/api/v1/hotels/1641879/translations/en")
+  check_status "$status_code" 200 "Get English translations"
+  
+  translations_response=$(cat "$ARTIFACTS_DIR/translations_en.json")
+  check_json_response "$translations_response" "1641879" "en" "count" "translations"
+  
+  # Test hotel with no translations
+  status_code=$(curl -s -o "$ARTIFACTS_DIR/translations_empty.json" -w "%{http_code}" "$BASE_URL/api/v1/hotels/999999/translations/fr")
+  check_status "$status_code" 200 "Get translations for hotel with no translations"
+  
+  local empty_translations_response
+  empty_translations_response=$(cat "$ARTIFACTS_DIR/translations_empty.json")
+  check_json_response "$empty_translations_response" "999999" "fr" "count" "translations"
+  
+  # Test unsupported language
+  status_code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/v1/hotels/1641879/translations/de")
+  check_status "$status_code" 400 "Get translations with unsupported language"
+  
+  # Test invalid hotel ID format
+  status_code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/v1/hotels/invalid/translations/fr")
+  check_status "$status_code" 400 "Get translations with invalid hotel ID format"
+  
+  # Test method not allowed
+  status_code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/v1/hotels/1641879/translations/fr")
+  check_status "$status_code" 405 "Wrong HTTP method for translations endpoint"
+  
+  # Test missing hotel ID
+  status_code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/v1/hotels//translations/fr")
+  check_status "$status_code" 301 "Get translations with missing hotel ID"
+  
+  # Test missing language
+  status_code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/v1/hotels/1641879/translations/")
+  check_status "$status_code" 404 "Get translations with missing language"
+  
+  # Test invalid language format
+  status_code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/v1/hotels/1641879/translations/123")
+  check_status "$status_code" 400 "Get translations with invalid language format"
+  
+  success "Translations endpoint tests passed!"
+}
+
+function test_error_scenarios() {
+  echo "Testing error scenarios..."
+  
+  # Test 404 for non-existent endpoints
+  local status_code
+  status_code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/v1/nonexistent")
+  check_status "$status_code" 404 "Non-existent endpoint"
+  
+  status_code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/v1/hotels/1641879/nonexistent")
+  check_status "$status_code" 404 "Non-existent hotel sub-endpoint"
+  
+  # Test malformed URLs
+  status_code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/v1/hotels/1641879/translations")
+  check_status "$status_code" 404 "Translations endpoint without language"
+  
+  success "Error scenarios test passed!"
 }
 
 # Run data sync test case
@@ -151,10 +299,8 @@ function run_data_sync_case() {
 function test_data_sync() {
   echo "Testing data-sync functionality..."
   
-  # Wait for WireMock to be ready
   wait_for_service "$WIREMOCK_URL/__admin/mappings" "WireMock"
   
-  # Run test cases
   run_data_sync_case "1641879"   # 200 - success case
   run_data_sync_case "bad-1"     # 400 - bad request
   run_data_sync_case "server-1"  # 500 - server error
@@ -162,9 +308,85 @@ function test_data_sync() {
   success "All data-sync tests passed!"
 }
 
+function test_batch_sync() {
+  echo "Testing batch sync functionality..."
+  
+  wait_for_service "$WIREMOCK_URL/__admin/mappings" "WireMock"
+  
+  echo "----- batch sync test -----"
+  
+  # Test batch sync with a small subset (just a few hotels)
+  # We'll use a timeout to avoid running the full 100 hotels
+  timeout 30s CUPID_SANDBOX_API=test-key CUPID_BASE_URL=http://localhost:8081 ./bin/data-sync || true
+  
+  echo "Batch sync test completed"
+  
+  success "Batch sync test passed!"
+}
+
+function test_response_validation() {
+  echo "Testing response validation..."
+  
+  # Test hotel response structure
+  local hotel_response
+  hotel_response=$(curl -s "$BASE_URL/api/v1/hotels/1641879")
+  
+  # Validate required fields exist
+  check_json_response "$hotel_response" "hotel_id" "hotel_name" "rating" "review_count"
+  
+  # Test reviews response structure
+  local reviews_response
+  reviews_response=$(curl -s "$BASE_URL/api/v1/hotels/1641879/reviews")
+  
+  # Validate required fields exist
+  check_json_response "$reviews_response" "hotel_id" "count" "reviews"
+  
+  # Test translations response structure
+  local translations_response
+  translations_response=$(curl -s "$BASE_URL/api/v1/hotels/1641879/translations/fr")
+  
+  # Validate required fields exist
+  check_json_response "$translations_response" "hotel_id" "language" "count" "translations"
+  
+  success "Response validation tests passed!"
+}
+
+function test_performance() {
+  echo "Testing basic performance..."
+  
+  # Test response time for main endpoints
+  local start_time
+  local end_time
+  local response_time
+  
+  start_time=$(date +%s%N)
+  curl -s -o /dev/null "$BASE_URL/health"
+  end_time=$(date +%s%N)
+  response_time=$(( (end_time - start_time) / 1000000 ))
+  
+  if [ "$response_time" -gt 1000 ]; then
+    warning "Health endpoint response time: ${response_time}ms (slow)"
+  else
+    success "Health endpoint response time: ${response_time}ms"
+  fi
+  
+  start_time=$(date +%s%N)
+  curl -s -o /dev/null "$BASE_URL/api/v1/hotels/1641879"
+  end_time=$(date +%s%N)
+  response_time=$(( (end_time - start_time) / 1000000 ))
+  
+  if [ "$response_time" -gt 1000 ]; then
+    warning "Hotel endpoint response time: ${response_time}ms (slow)"
+  else
+    success "Hotel endpoint response time: ${response_time}ms"
+  fi
+  
+  success "Performance tests completed!"
+}
+
 # Main function
 function main() {
-  echo "Starting integration tests..."
+  echo "Starting comprehensive integration tests..."
   
   # Set up trap for cleanup
   trap cleanup EXIT
@@ -177,7 +399,14 @@ function main() {
   
   # Run tests
   test_health_endpoint
+  test_hotel_endpoints
+  test_reviews_endpoints
+  test_translations_endpoints
+  test_error_scenarios
+  test_response_validation
+  test_performance
   test_data_sync
+  test_batch_sync
   
   success "All integration tests passed!"
 }

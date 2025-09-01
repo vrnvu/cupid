@@ -1,0 +1,164 @@
+# Cupid Backend Engineering Project
+
+## Project Overview
+Hotel management service with HTTP API and data synchronization. Consumes Cupid API to fetch hotel properties, reviews, and translations, stores them in PostgreSQL, and exposes a REST API.
+
+## Core Objectives
+- **Data Consumption**: Fetch hotel properties, reviews, and translations (French/Spanish) from Cupid API
+- **Data Storage**: Design efficient PostgreSQL schema for hotels, reviews, translations
+- **Public API**: Expose REST endpoints for hotels, reviews, translations
+- **Testing**: Comprehensive unit and integration tests with proper isolation
+- **Data Sync**: Strategy for keeping data up-to-date with batch processing
+
+## Technology Stack
+- **Language**: Go 1.23.4
+- **Database**: PostgreSQL with proper schema design and migrations
+- **API**: REST with proper HTTP status codes and error handling
+- **Infrastructure**: Docker Compose for local development
+- **Observability**: OpenTelemetry with HoneyComb integration
+- **Mocking**: WireMock for external API testing
+- **Linting**: golangci-lint with comprehensive rules
+
+## Code Standards
+
+### General Principles
+- **Simplicity over complexity**: Avoid over-engineering and unnecessary design patterns
+- **Clear and readable**: Code should be self-documenting without redundant comments
+- **No emojis or excessive comments**: Keep it professional and concise
+
+### Go-Specific Guidelines
+- Use standard library where possible
+- Prefer composition over inheritance
+- Use interfaces for testability
+- Handle errors explicitly, don't ignore them
+- Use context for cancellation and timeouts
+- Follow Go naming conventions (camelCase for private, PascalCase for public)
+- Use meaningful variable names, avoid abbreviations
+- Keep functions small and focused
+- Use `t.Cleanup()` for test database cleanup
+- Use `t.Parallel()` for concurrent test execution
+
+### Database Design
+- Normalize data appropriately with proper foreign keys
+- Use foreign keys and constraints for data integrity
+- Design for query performance with proper indexing
+- Handle concurrent access safely with connection pooling
+- Use migrations for schema versioning
+- Implement proper cleanup between tests
+
+### API Design
+- Follow REST conventions with proper HTTP methods
+- Use proper HTTP status codes (200, 400, 404, 405, 500)
+- Implement proper error responses with meaningful messages
+- Use pagination for list endpoints
+- Version APIs appropriately (/api/v1/)
+- Document endpoints clearly
+- Support multiple languages (en, fr, es)
+
+### Testing Strategy
+- Unit tests for business logic with mocks
+- Integration tests for database operations with real DB
+- **Always use `t.Parallel()` for all tests**
+- **Never assume the database is in a clean state**
+- **Do not clean database between test executions**
+- **Make tests parallelizable and independent of other executions**
+- Use random IDs to avoid conflicts between parallel tests
+- Test error conditions and edge cases
+- Mock external dependencies appropriately
+- Ensure `make lint` passes with no errors
+
+## Project Structure
+```
+cupid/
+├── server/                    # Main Go application
+│   ├── cmd/                  # Application entry points
+│   │   ├── server/           # HTTP API server
+│   │   └── data-sync/        # Data synchronization tool
+│   ├── internal/             # Private application code
+│   │   ├── client/           # HTTP client for Cupid API
+│   │   ├── database/         # Database connection and repository layer
+│   │   ├── handlers/         # HTTP request handlers
+│   │   └── telemetry/        # OpenTelemetry configuration
+│   ├── Dockerfile            # Container configuration
+│   └── go.mod                # Go module dependencies
+├── migrations/               # Database schema migrations
+├── scripts/                  # Integration test scripts
+├── wiremock/                 # Mock server for testing
+│   ├── mappings/             # API response mappings
+│   └── __files/              # Static response files
+├── docker-compose.yml        # Local development setup
+├── Makefile                  # Build and test commands
+├── .golangci.yaml           # Linting configuration
+└── README.md                # Project documentation
+```
+
+## Key Features
+- Hotel property fetching and storage with comprehensive data model
+- Multi-language support (English, French, Spanish)
+- Review management with rating and content
+- Translation handling for hotel details
+- Health check endpoints with database connectivity
+- Data synchronization with batch processing
+- Comprehensive error handling and logging
+- OpenTelemetry observability integration
+
+## Development Workflow
+- Use `make start-docker` to start dependencies (PostgreSQL, WireMock)
+- Use `make test` to run unit tests with database cleanup
+- Use `make integration-test` to run comprehensive integration tests
+- Use `make build` to build both server and data-sync binaries
+- Use `make lint` to run golangci-lint
+- Tests must pass before any commits
+- Database cleanup between tests is mandatory using `t.Cleanup()`
+
+## Environment Configuration
+- **PORT**: Server port (default: 8080)
+- **DB_HOST**: Database host (default: localhost)
+- **DB_PORT**: Database port (default: 5432)
+- **DB_USER**: Database user (default: cupid)
+- **DB_PASSWORD**: Database password (default: cupid123)
+- **DB_NAME**: Database name (default: cupid)
+- **DB_SSLMODE**: Database SSL mode (default: disable)
+- **CUPID_BASE_URL**: Cupid API base URL
+- **CUPID_SANDBOX_API**: Cupid API key
+- **HOTEL_ID**: Default hotel ID for data sync
+- **ENV**: Environment (local/dev/pre/pro)
+- **ENABLE_TELEMETRY**: OpenTelemetry (default: 0)
+
+## API Endpoints
+- `GET /health` - Health check with database connectivity
+- `GET /api/v1/hotels` - List hotels with pagination
+- `GET /api/v1/hotels/{hotelID}` - Get hotel by ID
+- `GET /api/v1/hotels/{hotelID}/reviews` - Get hotel reviews
+- `GET /api/v1/hotels/{hotelID}/translations/{language}` - Get hotel translations
+
+## Testing Infrastructure
+- **Unit Tests**: Mock-based testing with testify/mock
+- **Integration Tests**: Real database testing with cleanup
+- **WireMock**: External API mocking for consistent testing
+- **Test Isolation**: `t.Cleanup()` ensures clean state between tests
+- **Parallel Testing**: `t.Parallel()` for concurrent test execution
+- **Coverage**: Comprehensive test coverage reporting
+
+## Performance Considerations
+- Use connection pooling for database (25 max connections)
+- Implement proper indexing on frequently queried fields
+- Consider caching for frequently accessed data
+- Optimize API response times
+- Handle concurrent requests safely
+- Use batch processing for data synchronization
+
+## Security
+- Validate all inputs with proper error handling
+- Use parameterized queries to prevent SQL injection
+- Implement proper authentication if needed
+- Handle sensitive data appropriately
+- Use environment variables for configuration
+
+## Monitoring and Observability
+- Implement health checks with database connectivity
+- Add structured logging with proper levels
+- Use OpenTelemetry for distributed tracing
+- Monitor API performance and response times
+- Track error rates and system metrics
+- Integration with HoneyComb for observability
