@@ -268,7 +268,7 @@ function populate_test_data() {
   
   # Populate hotel data for the main test hotel
   echo "Syncing hotel 1641879..."
-  CUPID_SANDBOX_API="${CUPID_SANDBOX_API}" CUPID_BASE_URL="${CUPID_BASE_URL}" HOTEL_ID="${HOTEL_ID}" ./bin/data-sync || true
+  DB_HOST=localhost CUPID_SANDBOX_API="${CUPID_SANDBOX_API}" CUPID_BASE_URL="${CUPID_BASE_URL}" HOTEL_ID="${HOTEL_ID}" ./bin/data-sync || true
   
   # Wait a moment for data to be processed
   sleep 2
@@ -290,7 +290,7 @@ function run_data_sync_case() {
   echo ""
   echo "----- data-sync case: ${case_id} -----"
   
-  CUPID_SANDBOX_API="${CUPID_SANDBOX_API}" CUPID_BASE_URL="${CUPID_BASE_URL}" HOTEL_ID="$case_id" ./bin/data-sync || true
+  DB_HOST=localhost CUPID_SANDBOX_API="${CUPID_SANDBOX_API}" CUPID_BASE_URL="${CUPID_BASE_URL}" HOTEL_ID="$case_id" ./bin/data-sync || true
   
   echo "Data sync case $case_id completed"
 }
@@ -310,7 +310,7 @@ function test_batch_sync() {
   echo "----- batch sync test -----"
   
   # Run batch sync with timeout
-  timeout 30s CUPID_SANDBOX_API="${CUPID_SANDBOX_API}" CUPID_BASE_URL="${CUPID_BASE_URL}" ./bin/data-sync || true
+  timeout 30s DB_HOST=localhost CUPID_SANDBOX_API="${CUPID_SANDBOX_API}" CUPID_BASE_URL="${CUPID_BASE_URL}" ./bin/data-sync || true
   
   echo "Batch sync test completed"
   
