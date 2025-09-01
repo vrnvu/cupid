@@ -2,6 +2,7 @@
 
 <img width="1150" height="642" alt="Screenshot 2025-09-01 at 20 28 18" src="https://github.com/user-attachments/assets/720027b9-67ed-4359-8665-a0035d7248ae" />
 
+<img width="1420" height="615" alt="Screenshot 2025-09-01 at 20 29 29" src="https://github.com/user-attachments/assets/2628d530-0f20-4b76-a8ac-9028bce5aa49" />
 
 <img width="734" height="768" alt="Screenshot 2025-09-01 at 20 00 01" src="https://github.com/user-attachments/assets/c59fb37c-03bd-4b48-bef0-1f305d2975b4" />
 
