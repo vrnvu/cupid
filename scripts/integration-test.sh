@@ -12,8 +12,7 @@ readonly NC='\033[0m' # No Color
 readonly ARTIFACTS_DIR="artifacts"
 
 # Global variables
-BASE_URL=""
-ENV_FILE=""
+BASE_URL="http://localhost:8080"
 
 # Cleanup function
 function cleanup() {
@@ -39,28 +38,14 @@ function warning() {
 
 # Load environment configuration
 function load_env_config() {
-  case "${ENV:-local}" in
-    local)
-      ENV_FILE=".env"
-      BASE_URL="http://localhost:8080"
-      ;;
-    dev|pre|pro)
-      ENV_FILE=".env.${ENV}"
-      BASE_URL="http://localhost:8080"
-      ;;
-    *)
-      error_exit "Invalid ENV value. Please set ENV to 'local', 'dev', 'pre', or 'pro'."
-      ;;
-  esac
-
   echo "Testing ${ENV:-local} environment: $BASE_URL"
 
-  if [ -f "$ENV_FILE" ]; then
-    echo "Loading environment from $ENV_FILE file..."
+  if [ -f ".env" ]; then
+    echo "Loading environment from .env file..."
     # shellcheck disable=SC2046
-    export $(grep -v '^#' "$ENV_FILE" | xargs)
+    export $(grep -v '^#' ".env" | xargs)
   else
-    warning "Environment file $ENV_FILE not found. Using defaults."
+    warning "Environment file .env not found. Using defaults."
   fi
 }
 
@@ -301,16 +286,11 @@ function populate_test_data() {
 # Run data sync test case
 function run_data_sync_case() {
   local case_id="$1"
-  local expected_result="${2:-success}"
   
   echo ""
   echo "----- data-sync case: ${case_id} -----"
   
-  if [ "${ENV:-local}" = "local" ]; then
-    DB_HOST=localhost CUPID_SANDBOX_API="${CUPID_SANDBOX_API}" CUPID_BASE_URL="${CUPID_BASE_URL}" HOTEL_ID="$case_id" ./bin/data-sync || true
-  else
-    CUPID_SANDBOX_API="${CUPID_SANDBOX_API}" CUPID_BASE_URL="${CUPID_BASE_URL}" HOTEL_ID="$case_id" ./bin/data-sync || true
-  fi
+  CUPID_SANDBOX_API="${CUPID_SANDBOX_API}" CUPID_BASE_URL="${CUPID_BASE_URL}" HOTEL_ID="$case_id" ./bin/data-sync || true
   
   echo "Data sync case $case_id completed"
 }
@@ -329,18 +309,8 @@ function test_batch_sync() {
   
   echo "----- batch sync test -----"
   
-  # Test batch sync with a small subset (just a few hotels)
-  # We'll use a timeout to avoid running the full 100 hotels
-  if command -v timeout >/dev/null 2>&1; then
-    timeout 30s CUPID_SANDBOX_API="${CUPID_SANDBOX_API}" CUPID_BASE_URL="${CUPID_BASE_URL}" ./bin/data-sync || true
-  else
-    # Fallback for systems without timeout command (like macOS)
-    echo "Running batch sync without timeout (timeout command not available)"
-    CUPID_SANDBOX_API="${CUPID_SANDBOX_API}" CUPID_BASE_URL="${CUPID_BASE_URL}" ./bin/data-sync &
-    local sync_pid=$!
-    sleep 30
-    kill $sync_pid 2>/dev/null || true
-  fi
+  # Run batch sync with timeout
+  timeout 30s CUPID_SANDBOX_API="${CUPID_SANDBOX_API}" CUPID_BASE_URL="${CUPID_BASE_URL}" ./bin/data-sync || true
   
   echo "Batch sync test completed"
   
