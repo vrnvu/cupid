@@ -146,10 +146,12 @@ jobs:
                 DB_PASSWORD=cupid123
                 DB_NAME=cupid
                 DB_SSLMODE=disable
-                CUPID_BASE_URL=http://localhost:8081
+                CUPID_BASE_URL=https://content-api.cupid.travel
                 CUPID_SANDBOX_API=i2O4p6A8s0D3f5G7h9J1k3L5m7N9b
                 HOTEL_ID=1641879
                 ENV=test
+                REDIS_HOST=redis
+                REDIS_PORT=6379
                 EOF
 
             - name: Start docker-compose services
@@ -214,10 +216,12 @@ jobs:
                 DB_PASSWORD=cupid123
                 DB_NAME=cupid
                 DB_SSLMODE=disable
-                CUPID_BASE_URL=http://localhost:8081
+                CUPID_BASE_URL=https://content-api.cupid.travel
                 CUPID_SANDBOX_API=i2O4p6A8s0D3f5G7h9J1k3L5m7N9b
                 HOTEL_ID=1641879
                 ENV=dev
+                REDIS_HOST=redis
+                REDIS_PORT=6379
                 EOF
 
             - name: Start docker-compose services
@@ -261,10 +265,12 @@ jobs:
                 DB_PASSWORD=cupid123
                 DB_NAME=cupid
                 DB_SSLMODE=disable
-                CUPID_BASE_URL=http://localhost:8081
+                CUPID_BASE_URL=https://content-api.cupid.travel
                 CUPID_SANDBOX_API=i2O4p6A8s0D3f5G7h9J1k3L5m7N9b
                 HOTEL_ID=1641879
                 ENV=pre
+                REDIS_HOST=redis
+                REDIS_PORT=6379
                 EOF
 
             - name: Start docker-compose services
@@ -308,10 +314,12 @@ jobs:
                 DB_PASSWORD=cupid123
                 DB_NAME=cupid
                 DB_SSLMODE=disable
-                CUPID_BASE_URL=http://localhost:8081
+                CUPID_BASE_URL=https://content-api.cupid.travel
                 CUPID_SANDBOX_API=i2O4p6A8s0D3f5G7h9J1k3L5m7N9b
                 HOTEL_ID=1641879
                 ENV=pro
+                REDIS_HOST=redis
+                REDIS_PORT=6379
                 EOF
 
             - name: Start docker-compose services
