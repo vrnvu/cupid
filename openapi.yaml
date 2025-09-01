@@ -14,8 +14,8 @@ info:
 servers:
   - url: http://localhost:8080
     description: Local development server
-  - url: https://api.cupid.com
-    description: Production server
+  - url: https://api.example.com
+    description: Production server (placeholder)
 
 paths:
   /health:
