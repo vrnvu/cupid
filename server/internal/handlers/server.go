@@ -6,17 +6,21 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
+	"github.com/vrnvu/cupid/internal/cache"
+	"github.com/vrnvu/cupid/internal/client"
 	"github.com/vrnvu/cupid/internal/database"
 	"github.com/vrnvu/cupid/internal/telemetry"
 )
 
 type Server struct {
 	repository database.Repository
+	cache      cache.ReviewCache
 }
 
-func NewServer(repository database.Repository) http.Handler {
-	server := &Server{repository: repository}
+func NewServer(repository database.Repository, cache cache.ReviewCache) http.Handler {
+	server := &Server{repository: repository, cache: cache}
 
 	mux := http.NewServeMux()
 
@@ -28,6 +32,7 @@ func NewServer(repository database.Repository) http.Handler {
 		handler := telemetry.NewHandler(http.HandlerFunc(server.getHotelsHandler), "HotelsHandler")
 		handler.ServeHTTP(w, r)
 	})
+
 	mux.HandleFunc("GET /api/v1/hotels/{hotelID}", func(w http.ResponseWriter, r *http.Request) {
 		handler := telemetry.NewHandler(http.HandlerFunc(server.getHotelHandler), "HotelHandler")
 		handler.ServeHTTP(w, r)
@@ -152,18 +157,41 @@ func (s *Server) getHotelReviewsHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	ctx := r.Context()
-	reviews, err := s.repository.GetHotelReviews(ctx, hotelID)
-	if err != nil {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
+	var reviews []client.Review
+	var fromCache bool
+
+	if s.cache != nil {
+		cachedReviews, err := s.cache.GetReviews(ctx, hotelID)
+		if err == nil && cachedReviews != nil {
+			reviews = cachedReviews
+			fromCache = true
+		}
+	}
+
+	if !fromCache {
+		reviews, err = s.repository.GetHotelReviews(ctx, hotelID)
+		if err != nil {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		if s.cache != nil {
+			cacheErr := s.cache.SetReviews(ctx, hotelID, reviews, 5*time.Minute)
+			if cacheErr != nil {
+				// Log cache error but don't fail the request
+				fmt.Printf("Warning: Failed to cache reviews for hotel %d: %v\n", hotelID, cacheErr)
+			}
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(map[string]interface{}{
-		"hotel_id": hotelID,
-		"reviews":  reviews,
-		"count":    len(reviews),
+		"hotel_id":   hotelID,
+		"reviews":    reviews,
+		"count":      len(reviews),
+		"from_cache": fromCache,
+		"cached_at":  time.Now().Format(time.RFC3339),
 	}); err != nil {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return

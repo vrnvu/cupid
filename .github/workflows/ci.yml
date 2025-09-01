@@ -172,6 +172,13 @@ jobs:
                 echo "${OUTPUT}"
                 echo "::endgroup::"
 
+            - name: Wait for Redis to be ready
+              run: |
+                timeout 30s bash -c 'until docker compose exec -T redis redis-cli ping; do sleep 1; done'
+
+            - name: Redis integration tests
+              run: make test-redis-integration
+
             - name: Cleanup docker-compose
               if: always()
               run: docker compose down -v

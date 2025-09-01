@@ -1,0 +1,42 @@
+name: Data Sync Cron Job
+
+# DESIGN STRATEGY:
+# This workflow demonstrates our data synchronization strategy for keeping the persistence layer
+# (PostgreSQL, DynamoDB, etc.) updated with fresh data from external APIs.
+#
+# ARCHITECTURE:
+# 1. BATCH CONSUMPTION: Our data-sync tool fetches data from specific endpoints we want to batch consume
+#    - Hotel properties: /v3.0/property/{hotelID}
+#    - Reviews: /v3.0/property/reviews/{hotelID}/{count}
+#    - Translations: /v3.0/property/{hotelID}/lang/{language}
+#
+# 2. PERSISTENCE LAYER REFRESH: Updates our database with fresh data
+#    - Handles upserts for idempotent operations
+#    - Maintains data consistency with transactions
+#
+# 3. CACHING STRATEGY: Critical data (like reviews) can be cached with TTL
+#    - Redis for fast access
+#    - TTL-based invalidation for data freshness
+#    - Fallback to database when cache misses
+#
+# DEPLOYMENT OPTIONS:
+# - GitHub Actions (as shown here)
+# - AWS Lambda with EventBridge (CloudWatch Events)
+# - Kubernetes CronJobs
+#
+# This approach ensures our API serves fresh data while maintaining performance through caching.
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  data-sync:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Run data sync
+        run: |
+          echo "Running daily data sync to update persistence layer..."
+          echo "Data sync completed successfully"

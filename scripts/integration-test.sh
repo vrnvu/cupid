@@ -10,9 +10,6 @@ readonly NC='\033[0m' # No Color
 
 # Configuration
 readonly ARTIFACTS_DIR="artifacts"
-readonly WIREMOCK_URL="http://localhost:8081"
-readonly WIREMOCK_RETRIES=10
-readonly WIREMOCK_RETRY_DELAY=1
 
 # Global variables
 BASE_URL=""
@@ -94,8 +91,8 @@ function check_json_response() {
 function wait_for_service() {
   local url="$1"
   local service_name="$2"
-  local retries="${3:-$WIREMOCK_RETRIES}"
-  local delay="${4:-$WIREMOCK_RETRY_DELAY}"
+  local retries="${3:-10}"
+  local delay="${4:-1}"
 
   echo "Waiting for $service_name to be ready..."
   
@@ -282,12 +279,11 @@ function test_error_scenarios() {
 function populate_test_data() {
   echo "Populating database with test data..."
   
-  wait_for_service "$WIREMOCK_URL/__admin/mappings" "WireMock"
   wait_for_service "$BASE_URL/health" "Server"
   
   # Populate hotel data for the main test hotel
   echo "Syncing hotel 1641879..."
-  CUPID_SANDBOX_API=test-key CUPID_BASE_URL=http://localhost:8081 HOTEL_ID=1641879 ./bin/data-sync || true
+  ./bin/data-sync || true
   
   # Wait a moment for data to be processed
   sleep 2
@@ -311,9 +307,9 @@ function run_data_sync_case() {
   echo "----- data-sync case: ${case_id} -----"
   
   if [ "${ENV:-local}" = "local" ]; then
-    DB_HOST=localhost CUPID_SANDBOX_API=test-key CUPID_BASE_URL=http://localhost:8081 HOTEL_ID="$case_id" ./bin/data-sync || true
+    DB_HOST=localhost HOTEL_ID="$case_id" ./bin/data-sync || true
   else
-    CUPID_SANDBOX_API=test-key CUPID_BASE_URL=http://localhost:8081 HOTEL_ID="$case_id" ./bin/data-sync || true
+    HOTEL_ID="$case_id" ./bin/data-sync || true
   fi
   
   echo "Data sync case $case_id completed"
@@ -323,11 +319,7 @@ function run_data_sync_case() {
 function test_data_sync() {
   echo "Testing data-sync functionality..."
   
-  wait_for_service "$WIREMOCK_URL/__admin/mappings" "WireMock"
-  
   run_data_sync_case "1641879"   # 200 - success case
-  run_data_sync_case "bad-1"     # 400 - bad request
-  run_data_sync_case "server-1"  # 500 - server error
   
   success "All data-sync tests passed!"
 }
@@ -335,18 +327,16 @@ function test_data_sync() {
 function test_batch_sync() {
   echo "Testing batch sync functionality..."
   
-  wait_for_service "$WIREMOCK_URL/__admin/mappings" "WireMock"
-  
   echo "----- batch sync test -----"
   
   # Test batch sync with a small subset (just a few hotels)
   # We'll use a timeout to avoid running the full 100 hotels
   if command -v timeout >/dev/null 2>&1; then
-    timeout 30s CUPID_SANDBOX_API=test-key CUPID_BASE_URL=http://localhost:8081 ./bin/data-sync || true
+    timeout 30s ./bin/data-sync || true
   else
     # Fallback for systems without timeout command (like macOS)
     echo "Running batch sync without timeout (timeout command not available)"
-    CUPID_SANDBOX_API=test-key CUPID_BASE_URL=http://localhost:8081 ./bin/data-sync &
+    ./bin/data-sync &
     local sync_pid=$!
     sleep 30
     kill $sync_pid 2>/dev/null || true

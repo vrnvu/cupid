@@ -83,3 +83,7 @@ diff-check:
 test-coverage:
 	@cd server && go tool cover -func=./coverage.out
 .PHONY: test-coverage
+
+test-redis-integration:
+	@cd server && go test -tags=integration ./internal/cache/... -v
+.PHONY: test-redis-integration

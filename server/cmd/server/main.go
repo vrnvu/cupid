@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/vrnvu/cupid/internal/cache"
 	"github.com/vrnvu/cupid/internal/database"
 	"github.com/vrnvu/cupid/internal/handlers"
 	"github.com/vrnvu/cupid/internal/telemetry"
@@ -39,7 +40,22 @@ func main() {
 	defer db.Close()
 
 	repository := database.NewHotelRepository(db)
-	server := handlers.NewServer(repository)
+
+	redisAddr := getEnvOrDefault("REDIS_HOST", "localhost") + ":" + getEnvOrDefault("REDIS_PORT", "6379")
+	redisCache := cache.NewRedisCache(redisAddr)
+	defer redisCache.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := redisCache.Ping(ctx); err != nil {
+		log.Printf("Warning: Redis connection failed: %v", err)
+		log.Println("Continuing without cache...")
+		redisCache = nil
+	} else {
+		log.Println("Redis cache connected successfully")
+	}
+
+	server := handlers.NewServer(repository, redisCache)
 
 	port := getEnvOrDefault("PORT", "8080")
 	addr := ":" + port
@@ -65,10 +81,10 @@ func main() {
 
 	log.Println("Shutting down server...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
 
-	if err := httpServer.Shutdown(ctx); err != nil {
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		log.Fatalf("Server forced to shutdown: %v", err)
 	}
 
