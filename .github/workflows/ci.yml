@@ -251,7 +251,7 @@ jobs:
 
             - name: Create .env file for DEV
               run: |
-                cat > .env.dev << EOF
+                cat > .env << EOF
                 PORT=8080
                 ENABLE_TELEMETRY=0
                 DB_HOST=postgres
@@ -300,7 +300,7 @@ jobs:
 
             - name: Create .env file for PRE
               run: |
-                cat > .env.pre << EOF
+                cat > .env << EOF
                 PORT=8080
                 ENABLE_TELEMETRY=0
                 DB_HOST=postgres
@@ -349,7 +349,7 @@ jobs:
 
             - name: Create .env file for PRO
               run: |
-                cat > .env.pro << EOF
+                cat > .env << EOF
                 PORT=8080
                 ENABLE_TELEMETRY=0
                 DB_HOST=postgres
