@@ -42,7 +42,7 @@
 - Built three testing levels: unit tests with mocks, integration tests with real database, end-to-end API tests
 - Added tests for concurrent database access and race conditions to ensure thread safety
 
-**Note on Unit Tests**: While some engineering teams prefer integration tests over unit tests, I kept some unit tests in this assignment with mocks.
+**Note on Unit Tests**: While some engineering teams prefer integration tests over unit tests, I kept some unit tests in this assignment with mocks. https://matklad.github.io/2021/05/31/how-to-test.html
 
 **API Design**
 - Created RESTful endpoints with proper HTTP status codes (200, 400, 404, 405, 500)
@@ -92,29 +92,6 @@
 ### Scripts and Testing
 - `scripts/integration-test.sh` - Runs comprehensive tests against the whole system. We use this same script across dev, pre, and production environments.
 - `wiremock/` - A mock server that simulates the Cupid API during testing
-
-### Testing Strategy
-
-**Unit Tests** (`make test-unit`)
-- Test individual components in isolation using mocks
-- Focus on business logic validation (e.g., input validation, data filtering)
-- Fast execution with no external dependencies
-- Useful for testing edge cases and error conditions
-
-**Integration Tests** (`make test-integration`)
-- Test component interactions with real database and Redis
-- Verify data persistence and caching behavior
-- Test API endpoints with actual HTTP requests
-- Ensure components work together correctly
-
-**End-to-End Tests** (`make integration-test`)
-- Full system testing with real external API simulation
-- Test complete user workflows and data synchronization
-- Validate system behavior in realistic scenarios
-- Used across all environments (dev/pre/pro) with different configurations
-
-**Test Philosophy**: Following matklad's testing principles, we focus on testing features rather than implementation details. Our tests verify that the system behaves correctly from a user's perspective, not that internal components work in isolation.
-
 
 ## Getting Started
 

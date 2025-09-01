@@ -88,44 +88,62 @@ func TestServer_GetHotelsHandler_Integration(t *testing.T) {
 	_, cache, repo := setupTestInfrastructure(t)
 	server := NewServer(repo, cache, "")
 
-	t.Run("GetAllHotels", func(t *testing.T) {
-		t.Parallel()
+	tests := []struct {
+		name           string
+		url            string
+		expectedStatus int
+		expectedLimit  interface{}
+		expectedOffset interface{}
+		minHotels      int
+		exactHotels    int
+	}{
+		{
+			name:           "GetAllHotels",
+			url:            "/api/v1/hotels",
+			expectedStatus: http.StatusOK,
+			minHotels:      1,
+		},
+		{
+			name:           "GetHotelsWithPagination",
+			url:            "/api/v1/hotels?limit=1&offset=0",
+			expectedStatus: http.StatusOK,
+			expectedLimit:  float64(1),
+			expectedOffset: float64(0),
+			exactHotels:    1,
+		},
+	}
 
-		req := httptest.NewRequest("GET", "/api/v1/hotels", nil)
-		w := httptest.NewRecorder()
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		server.ServeHTTP(w, req)
+			req := httptest.NewRequest("GET", tt.url, nil)
+			w := httptest.NewRecorder()
 
-		assert.Equal(t, http.StatusOK, w.Code)
+			server.ServeHTTP(w, req)
 
-		var response map[string]interface{}
-		err := json.NewDecoder(w.Body).Decode(&response)
-		require.NoError(t, err)
+			assert.Equal(t, tt.expectedStatus, w.Code)
 
-		hotels := response["hotels"].([]interface{})
-		assert.GreaterOrEqual(t, len(hotels), 1, "Should have at least 1 hotel")
-	})
+			var response map[string]interface{}
+			err := json.NewDecoder(w.Body).Decode(&response)
+			require.NoError(t, err)
 
-	t.Run("GetHotelsWithPagination", func(t *testing.T) {
-		t.Parallel()
+			if tt.expectedLimit != nil {
+				assert.Equal(t, tt.expectedLimit, response["limit"])
+			}
+			if tt.expectedOffset != nil {
+				assert.Equal(t, tt.expectedOffset, response["offset"])
+			}
 
-		req := httptest.NewRequest("GET", "/api/v1/hotels?limit=1&offset=0", nil)
-		w := httptest.NewRecorder()
-
-		server.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response map[string]interface{}
-		err := json.NewDecoder(w.Body).Decode(&response)
-		require.NoError(t, err)
-
-		assert.Equal(t, float64(1), response["limit"])
-		assert.Equal(t, float64(0), response["offset"])
-
-		hotels := response["hotels"].([]interface{})
-		assert.Len(t, hotels, 1, "Should have exactly 1 hotel with limit=1")
-	})
+			hotels := response["hotels"].([]interface{})
+			if tt.exactHotels > 0 {
+				assert.Len(t, hotels, tt.exactHotels, "Should have exactly %d hotels", tt.exactHotels)
+			} else if tt.minHotels > 0 {
+				assert.GreaterOrEqual(t, len(hotels), tt.minHotels, "Should have at least %d hotels", tt.minHotels)
+			}
+		})
+	}
 }
 
 func TestServer_GetHotelHandler_Integration(t *testing.T) {
@@ -134,31 +152,46 @@ func TestServer_GetHotelHandler_Integration(t *testing.T) {
 	_, cache, repo := setupTestInfrastructure(t)
 	server := NewServer(repo, cache, "")
 
-	t.Run("GetHotelByID", func(t *testing.T) {
-		t.Parallel()
+	tests := []struct {
+		name           string
+		hotelID        string
+		expectedStatus []int
+		expectedBody   string
+	}{
+		{
+			name:           "GetHotelByID",
+			hotelID:        "999999",
+			expectedStatus: []int{http.StatusOK, http.StatusNotFound},
+		},
+		{
+			name:           "GetNonExistentHotel",
+			hotelID:        "999999",
+			expectedStatus: []int{http.StatusNotFound},
+			expectedBody:   "Hotel with ID 999999 not found",
+		},
+	}
 
-		// Just test that the endpoint responds correctly
-		// Don't assume any specific hotel exists
-		req := httptest.NewRequest("GET", "/api/v1/hotels/999999", nil)
-		w := httptest.NewRecorder()
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		server.ServeHTTP(w, req)
+			req := httptest.NewRequest("GET", "/api/v1/hotels/"+tt.hotelID, nil)
+			w := httptest.NewRecorder()
 
-		// Should either return 404 or 200 depending on what's in the database
-		assert.Contains(t, []int{http.StatusOK, http.StatusNotFound}, w.Code)
-	})
+			server.ServeHTTP(w, req)
 
-	t.Run("GetNonExistentHotel", func(t *testing.T) {
-		t.Parallel()
+			if len(tt.expectedStatus) == 1 {
+				assert.Equal(t, tt.expectedStatus[0], w.Code)
+			} else {
+				assert.Contains(t, tt.expectedStatus, w.Code)
+			}
 
-		req := httptest.NewRequest("GET", "/api/v1/hotels/999999", nil)
-		w := httptest.NewRecorder()
-
-		server.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusNotFound, w.Code)
-		assert.Contains(t, w.Body.String(), "Hotel with ID 999999 not found")
-	})
+			if tt.expectedBody != "" {
+				assert.Contains(t, w.Body.String(), tt.expectedBody)
+			}
+		})
+	}
 }
 
 func TestServer_GetHotelReviewsHandler_Integration(t *testing.T) {
@@ -167,19 +200,31 @@ func TestServer_GetHotelReviewsHandler_Integration(t *testing.T) {
 	_, cache, repo := setupTestInfrastructure(t)
 	server := NewServer(repo, cache, "")
 
-	t.Run("GetHotelReviews", func(t *testing.T) {
-		t.Parallel()
+	tests := []struct {
+		name           string
+		hotelID        string
+		expectedStatus []int
+	}{
+		{
+			name:           "GetHotelReviews",
+			hotelID:        "999999",
+			expectedStatus: []int{http.StatusOK, http.StatusNotFound},
+		},
+	}
 
-		// Just test that the endpoint responds correctly
-		// Don't assume any specific hotel exists
-		req := httptest.NewRequest("GET", "/api/v1/hotels/999999/reviews", nil)
-		w := httptest.NewRecorder()
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		server.ServeHTTP(w, req)
+			req := httptest.NewRequest("GET", "/api/v1/hotels/"+tt.hotelID+"/reviews", nil)
+			w := httptest.NewRecorder()
 
-		// Should either return 404 or 200 depending on what's in the database
-		assert.Contains(t, []int{http.StatusOK, http.StatusNotFound}, w.Code)
-	})
+			server.ServeHTTP(w, req)
+
+			assert.Contains(t, tt.expectedStatus, w.Code)
+		})
+	}
 }
 
 func TestServer_GetHotelTranslationsHandler_Integration(t *testing.T) {
@@ -188,45 +233,51 @@ func TestServer_GetHotelTranslationsHandler_Integration(t *testing.T) {
 	_, cache, repo := setupTestInfrastructure(t)
 	server := NewServer(repo, cache, "")
 
-	t.Run("GetFrenchTranslations", func(t *testing.T) {
-		t.Parallel()
+	tests := []struct {
+		name           string
+		language       string
+		expectedStatus int
+		expectedBody   string
+	}{
+		{
+			name:           "GetFrenchTranslations",
+			language:       "fr",
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "GetSpanishTranslations",
+			language:       "es",
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "GetUnsupportedLanguage",
+			language:       "de",
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "Unsupported language code",
+		},
+	}
 
-		// Just test that the endpoint responds correctly
-		// Don't assume any specific hotel exists
-		req := httptest.NewRequest("GET", "/api/v1/hotels/999999/translations/fr", nil)
-		w := httptest.NewRecorder()
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		server.ServeHTTP(w, req)
+			req := httptest.NewRequest("GET", "/api/v1/hotels/999999/translations/"+tt.language, nil)
+			w := httptest.NewRecorder()
 
-		// Should either return 404 or 200 depending on what's in the database
-		assert.Contains(t, []int{http.StatusOK, http.StatusNotFound}, w.Code)
-	})
+			server.ServeHTTP(w, req)
 
-	t.Run("GetSpanishTranslations", func(t *testing.T) {
-		t.Parallel()
-
-		// Just test that the endpoint responds correctly
-		// Don't assume any specific hotel exists
-		req := httptest.NewRequest("GET", "/api/v1/hotels/999999/translations/es", nil)
-		w := httptest.NewRecorder()
-
-		server.ServeHTTP(w, req)
-
-		// Should either return 404 or 200 depending on what's in the database
-		assert.Contains(t, []int{http.StatusOK, http.StatusNotFound}, w.Code)
-	})
-
-	t.Run("GetUnsupportedLanguage", func(t *testing.T) {
-		t.Parallel()
-
-		req := httptest.NewRequest("GET", "/api/v1/hotels/999999/translations/de", nil)
-		w := httptest.NewRecorder()
-
-		server.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "Unsupported language code")
-	})
+			if tt.expectedStatus == http.StatusOK {
+				// For supported languages, should either return 404 or 200 depending on what's in the database
+				assert.Contains(t, []int{http.StatusOK, http.StatusNotFound}, w.Code)
+			} else {
+				assert.Equal(t, tt.expectedStatus, w.Code)
+				if tt.expectedBody != "" {
+					assert.Contains(t, w.Body.String(), tt.expectedBody)
+				}
+			}
+		})
+	}
 }
 
 func TestServer_HealthHandler_Integration(t *testing.T) {
