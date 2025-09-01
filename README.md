@@ -42,6 +42,8 @@
 - Built three testing levels: unit tests with mocks, integration tests with real database, end-to-end API tests
 - Added tests for concurrent database access and race conditions to ensure thread safety
 
+**Note on Unit Tests**: While some engineering teams prefer integration tests over unit tests, I kept some unit tests in this assignment with mocks. https://matklad.github.io/2021/05/31/how-to-test.html
+
 **API Design**
 - Created RESTful endpoints with proper HTTP status codes (200, 400, 404, 405, 500)
 - Generated complete OpenAPI specification with request/response schemas for all endpoints
@@ -90,7 +92,6 @@
 ### Scripts and Testing
 - `scripts/integration-test.sh` - Runs comprehensive tests against the whole system. We use this same script across dev, pre, and production environments.
 - `wiremock/` - A mock server that simulates the Cupid API during testing
-
 
 ## Getting Started
 
