@@ -18,10 +18,16 @@ build-data-sync:
 	@cd server && go build -o ../bin/data-sync ./cmd/data-sync
 .PHONY: build-data-sync
 
+build-embedding-generator:
+	@mkdir -p bin
+	@cd server && go build -o ../bin/embedding-generator ./cmd/embedding-generator
+.PHONY: build-embedding-generator
+
 build:
 	@mkdir -p bin
 	@cd server && go build -o ../bin/server ./cmd/server
 	@cd server && go build -o ../bin/data-sync ./cmd/data-sync
+	@cd server && go build -o ../bin/embedding-generator ./cmd/embedding-generator
 .PHONY: build
 
 run-server:
@@ -31,6 +37,10 @@ run-server:
 run-data-sync:
 	@cd server && go run ./cmd/data-sync
 .PHONY: run-data-sync
+
+run-embedding-generator:
+	@cd server && go run ./cmd/embedding-generator
+.PHONY: run-embedding-generator
 
 start-docker:
 	docker compose down -v && docker compose up
@@ -87,3 +97,7 @@ test-coverage:
 test-redis-integration:
 	@cd server && go test -tags=integration ./internal/cache/... -v
 .PHONY: test-redis-integration
+
+test-ai-integration:
+	@cd server && go test -tags=integration ./internal/ai/... -v
+.PHONY: test-ai-integration

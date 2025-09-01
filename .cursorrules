@@ -139,6 +139,7 @@ cupid/
 - **Test Isolation**: `t.Cleanup()` ensures clean state between tests
 - **Parallel Testing**: `t.Parallel()` for concurrent test execution
 - **Coverage**: Comprehensive test coverage reporting
+- Use `/Users/arnau/go/bin/golangci-lint run --config ../.golangci.yaml` for lint
 
 ## Performance Considerations
 - Use connection pooling for database (25 max connections)

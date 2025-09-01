@@ -62,6 +62,16 @@ func (m *MockRepository) Ping(ctx context.Context) error {
 	return args.Error(0)
 }
 
+func (m *MockRepository) SearchReviewsByVector(ctx context.Context, queryEmbedding []float64, limit int, threshold float64) ([]client.Review, error) {
+	args := m.Called(ctx, queryEmbedding, limit, threshold)
+	return args.Get(0).([]client.Review), args.Error(1)
+}
+
+func (m *MockRepository) GetReviewsNeedingEmbeddings(ctx context.Context, limit int) ([]int, error) {
+	args := m.Called(ctx, limit)
+	return args.Get(0).([]int), args.Error(1)
+}
+
 func TestServer_HealthHandler(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

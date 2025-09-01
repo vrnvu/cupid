@@ -1,4 +1,4 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
   title: Cupid Hotel Management API
   description: |
@@ -275,6 +275,103 @@ paths:
                   value: "Invalid hotel ID format"
                 unsupported_language:
                   value: "Unsupported language code. Supported: fr, es, en"
+        "500":
+          description: Internal server error
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Internal server error"
+
+  /api/v1/reviews/search:
+    get:
+      summary: Search Reviews by Vector Similarity
+      description: |
+        Search for hotel reviews using vector similarity. This endpoint performs semantic search
+        by generating embeddings for the query text and finding reviews with similar embeddings
+        using cosine similarity.
+      operationId: searchReviews
+      tags:
+        - Reviews
+      parameters:
+        - name: q
+          in: query
+          description: Search query text for semantic search
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            example: "excellent service and clean rooms"
+        - name: limit
+          in: query
+          description: Maximum number of reviews to return (1-100)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: threshold
+          in: query
+          description: Minimum similarity threshold (0.0-1.0) for cosine similarity
+          required: false
+          schema:
+            type: number
+            format: float
+            minimum: 0.0
+            maximum: 1.0
+            default: 0.7
+      responses:
+        "200":
+          description: Reviews found successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  query:
+                    type: string
+                    description: The search query used
+                  limit:
+                    type: integer
+                    description: Maximum number of reviews requested
+                  threshold:
+                    type: number
+                    format: float
+                    description: Similarity threshold used
+                  reviews:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Review"
+                  count:
+                    type: integer
+                    description: Number of reviews returned
+                required:
+                  - query
+                  - limit
+                  - threshold
+                  - reviews
+                  - count
+        "400":
+          description: Bad request - missing or invalid query parameter
+          content:
+            text/plain:
+              schema:
+                type: string
+              examples:
+                missing_query:
+                  value: "Query parameter 'q' is required"
+                invalid_limit:
+                  value: "Invalid limit parameter"
+                invalid_threshold:
+                  value: "Invalid threshold parameter"
+        "405":
+          description: Method not allowed
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Method not allowed"
         "500":
           description: Internal server error
           content:

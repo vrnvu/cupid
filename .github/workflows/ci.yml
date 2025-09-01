@@ -185,6 +185,50 @@ jobs:
               if: always()
               run: docker compose down -v
 
+    integration-test-ai:
+        name: integration-test-ai
+        needs: integration-test-pro
+        runs-on: ubuntu-latest
+        environment: development
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Go
+              id: setup-go
+              uses: actions/setup-go@v5
+              with:
+                go-version-file: server/go.mod
+                cache: true
+                cache-dependency-path: server/go.sum
+
+            - name: Capture Go caches paths
+              id: go-cache-paths
+              working-directory: server
+              run: |
+                echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_ENV
+                echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_ENV
+
+            - name: Cache Go modules and build cache
+              uses: actions/cache@v4
+              with:
+                path: |
+                  ${{ env.GOMODCACHE }}
+                  ${{ env.GOCACHE }}
+                key: ${{ runner.os }}-go-${{ hashFiles('server/go.sum') }}-${{ steps.setup-go.outputs.go-version }}
+                restore-keys: |
+                  ${{ runner.os }}-go-${{ hashFiles('server/go.sum') }}-
+                  ${{ runner.os }}-go-
+
+            - name: Download modules
+              working-directory: server
+              run: go mod download
+
+            - name: AI integration tests
+              run: make test-ai-integration
+              env:
+                OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
     integration-test-dev:
         name: integration-test-dev
         needs: build

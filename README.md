@@ -124,3 +124,126 @@ cp .env.example .env
 - `GET /api/v1/hotels/{hotelID}` - Get hotel by ID
 - `GET /api/v1/hotels/{hotelID}/reviews` - Get hotel reviews
 - `GET /api/v1/hotels/{hotelID}/translations/{language}` - Get hotel translations (supported languages: fr, es, en)
+
+## Tests
+
+```
+➜  server git:(main) ✗ cd .. && make test
+        github.com/vrnvu/cupid/cmd/embedding-generator          coverage: 0.0% of statements
+        github.com/vrnvu/cupid/cmd/data-sync            coverage: 0.0% of statements
+        github.com/vrnvu/cupid/cmd/server               coverage: 0.0% of statements
+ok      github.com/vrnvu/cupid/internal/ai      0.184s  coverage: 88.1% of statements
+ok      github.com/vrnvu/cupid/internal/cache   0.549s  coverage: 85.7% of statements
+ok      github.com/vrnvu/cupid/internal/client  0.535s  coverage: 53.0% of statements
+        github.com/vrnvu/cupid/internal/telemetry               coverage: 0.0% of statements
+ok      github.com/vrnvu/cupid/internal/database        0.911s  coverage: 77.4% of statements
+ok      github.com/vrnvu/cupid/internal/handlers        0.227s  coverage: 42.6% of statements
+➜  cupid git:(main) ✗
+```
+
+```
+➜  cupid git:(main) ✗ make integration-test
+Starting comprehensive integration tests...
+Testing local environment: http://localhost:8080
+Loading environment from .env file...
+Populating database with test data...
+Waiting for Server to be ready...
+Server is ready!
+Syncing hotel 1641879...
+2025/09/01 19:29:13 Starting sync for hotel 1641879
+2025/09/01 19:29:14 Completed sync for hotel 1641879
+2025/09/01 19:29:15 Flushing traces to Honeycomb...
+Test data populated successfully
+Testing health endpoint scenarios...
+Health endpoint tests passed!
+Testing hotel endpoint scenarios...
+Hotel endpoint tests passed!
+Testing reviews endpoint scenarios...
+Reviews endpoint tests passed!
+Testing translations endpoint scenarios...
+Translations endpoint tests passed!
+Testing error scenarios...
+Error scenarios test passed!
+Testing response validation...
+Response validation tests passed!
+Testing basic performance...
+Health endpoint response time: 10ms
+Hotel endpoint response time: 10ms
+Performance tests completed!
+Testing data-sync functionality...
+
+----- data-sync case: 1641879 -----
+2025/09/01 19:29:17 Starting sync for hotel 1641879
+2025/09/01 19:29:18 Completed sync for hotel 1641879
+2025/09/01 19:29:18 Flushing traces to Honeycomb...
+Data sync case 1641879 completed
+All data-sync tests passed!
+Testing batch sync functionality...
+----- batch sync test -----
+Running batch sync without timeout (timeout command not available)
+2025/09/01 19:29:19 Starting sync for hotel 1641879
+2025/09/01 19:29:20 Completed sync for hotel 1641879
+2025/09/01 19:29:20 Flushing traces to Honeycomb...
+Batch sync test completed
+Batch sync test passed!
+All integration tests passed!
+Cleaning up artifacts directory...
+➜  cupid git:(main) ✗
+```
+
+```
+➜  cupid git:(main) ✗ make test-ai-integration
+=== RUN   TestAIService_Integration
+=== PAUSE TestAIService_Integration
+=== RUN   TestNewService
+=== PAUSE TestNewService
+=== RUN   TestGetModelInfo
+=== PAUSE TestGetModelInfo
+=== RUN   TestGenerateEmbedding_Success
+=== PAUSE TestGenerateEmbedding_Success
+=== RUN   TestGenerateEmbedding_EmptyText
+=== PAUSE TestGenerateEmbedding_EmptyText
+=== RUN   TestGenerateEmbedding_WhitespaceOnly
+=== PAUSE TestGenerateEmbedding_WhitespaceOnly
+=== RUN   TestGenerateEmbeddings_Success
+=== PAUSE TestGenerateEmbeddings_Success
+=== RUN   TestGenerateEmbeddings_EmptyInput
+=== PAUSE TestGenerateEmbeddings_EmptyInput
+=== RUN   TestGenerateEmbeddings_FiltersEmptyTexts
+=== PAUSE TestGenerateEmbeddings_FiltersEmptyTexts
+=== RUN   TestGenerateEmbeddings_APIError
+=== PAUSE TestGenerateEmbeddings_APIError
+=== RUN   TestGenerateEmbeddings_InvalidJSON
+=== PAUSE TestGenerateEmbeddings_InvalidJSON
+=== RUN   TestGenerateEmbeddings_MismatchedResponse
+=== PAUSE TestGenerateEmbeddings_MismatchedResponse
+=== CONT  TestAIService_Integration
+=== CONT  TestGenerateEmbeddings_Success
+=== NAME  TestAIService_Integration
+    integration_test.go:16: OPENAI_API_KEY not set, skipping integration test
+=== CONT  TestGenerateEmbedding_Success
+--- SKIP: TestAIService_Integration (0.00s)
+=== CONT  TestGetModelInfo
+--- PASS: TestGetModelInfo (0.00s)
+=== CONT  TestNewService
+--- PASS: TestNewService (0.00s)
+=== CONT  TestGenerateEmbeddings_APIError
+=== CONT  TestGenerateEmbedding_WhitespaceOnly
+--- PASS: TestGenerateEmbedding_WhitespaceOnly (0.00s)
+=== CONT  TestGenerateEmbeddings_FiltersEmptyTexts
+=== CONT  TestGenerateEmbedding_EmptyText
+--- PASS: TestGenerateEmbedding_EmptyText (0.00s)
+=== CONT  TestGenerateEmbeddings_EmptyInput
+=== CONT  TestGenerateEmbeddings_MismatchedResponse
+--- PASS: TestGenerateEmbeddings_EmptyInput (0.00s)
+=== CONT  TestGenerateEmbeddings_InvalidJSON
+--- PASS: TestGenerateEmbeddings_APIError (0.00s)
+--- PASS: TestGenerateEmbeddings_InvalidJSON (0.00s)
+--- PASS: TestGenerateEmbeddings_MismatchedResponse (0.00s)
+--- PASS: TestGenerateEmbeddings_FiltersEmptyTexts (0.00s)
+--- PASS: TestGenerateEmbedding_Success (0.00s)
+--- PASS: TestGenerateEmbeddings_Success (0.00s)
+PASS
+ok      github.com/vrnvu/cupid/internal/ai      0.328s
+➜  cupid git:(main) ✗
+```

@@ -45,6 +45,10 @@ func NewServer(repository database.Repository, cache cache.ReviewCache) http.Han
 		handler := telemetry.NewHandler(http.HandlerFunc(server.getHotelTranslationsHandler), "HotelTranslationsHandler")
 		handler.ServeHTTP(w, r)
 	})
+	mux.HandleFunc("GET /api/v1/reviews/search", func(w http.ResponseWriter, r *http.Request) {
+		handler := telemetry.NewHandler(http.HandlerFunc(server.searchReviewsHandler), "SearchReviewsHandler")
+		handler.ServeHTTP(w, r)
+	})
 
 	return mux
 }
@@ -239,6 +243,60 @@ func (s *Server) getHotelTranslationsHandler(w http.ResponseWriter, r *http.Requ
 		"translations": translations,
 		"count":        len(translations),
 	}); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *Server) searchReviewsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get query parameters
+	query := r.URL.Query().Get("q")
+	if query == "" {
+		http.Error(w, "Query parameter 'q' is required", http.StatusBadRequest)
+		return
+	}
+
+	// Parse limit parameter
+	limitStr := r.URL.Query().Get("limit")
+	limit := 10 // default
+	if limitStr != "" {
+		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
+			limit = parsedLimit
+			if limit > 100 {
+				limit = 100 // max limit
+			}
+		}
+	}
+
+	// Parse threshold parameter
+	thresholdStr := r.URL.Query().Get("threshold")
+	threshold := 0.7 // default similarity threshold
+	if thresholdStr != "" {
+		if parsedThreshold, err := strconv.ParseFloat(thresholdStr, 64); err == nil && parsedThreshold > 0 {
+			threshold = parsedThreshold
+		}
+	}
+
+	// TODO: Generate embedding for the query text and perform vector search
+	// For now, return a placeholder response
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	response := map[string]interface{}{
+		"query":     query,
+		"limit":     limit,
+		"threshold": threshold,
+		"message":   "Vector search endpoint ready - embedding generation not yet implemented",
+		"reviews":   []client.Review{},
+		"count":     0,
+	}
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
 	}

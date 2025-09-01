@@ -25,6 +25,8 @@ type Repository interface {
 	GetHotelByID(ctx context.Context, hotelID int) (*client.Property, error)
 	GetHotelReviews(ctx context.Context, hotelID int) ([]client.Review, error)
 	GetHotelTranslations(ctx context.Context, hotelID int, languageCode string) ([]client.Translation, error)
+	SearchReviewsByVector(ctx context.Context, queryEmbedding []float64, limit int, threshold float64) ([]client.Review, error)
+	GetReviewsNeedingEmbeddings(ctx context.Context, limit int) ([]int, error)
 	Ping(ctx context.Context) error
 }
 
@@ -34,6 +36,11 @@ type HotelRepository struct {
 
 func NewHotelRepository(db *DB) *HotelRepository {
 	return &HotelRepository{db: db}
+}
+
+// GetDB returns the underlying database connection for direct access
+func (r *HotelRepository) GetDB() *DB {
+	return r.db
 }
 
 func (r *HotelRepository) StoreProperty(ctx context.Context, property *client.Property) error {
@@ -665,4 +672,80 @@ func (r *HotelRepository) StoreTranslations(ctx context.Context, hotelID int, tr
 
 	committed = true
 	return nil
+}
+
+// SearchReviewsByVector performs vector similarity search on review embeddings
+func (r *HotelRepository) SearchReviewsByVector(ctx context.Context, queryEmbedding []float64, limit int, threshold float64) ([]client.Review, error) {
+	if len(queryEmbedding) == 0 {
+		return nil, fmt.Errorf("query embedding cannot be empty")
+	}
+
+	// Convert embedding to PostgreSQL vector format
+	vectorStr := "[" + strings.Trim(strings.Join(strings.Fields(fmt.Sprint(queryEmbedding)), ","), "[]") + "]"
+
+	query := `
+		SELECT id, hotel_id, reviewer_name, rating, title, content, language_code, 
+		       review_date, helpful_votes, created_at,
+		       1 - (embedding <=> $1::vector) as similarity
+		FROM reviews 
+		WHERE embedding IS NOT NULL 
+		AND embedding_status = 'completed'
+		AND 1 - (embedding <=> $1::vector) >= $2
+		ORDER BY embedding <=> $1::vector
+		LIMIT $3`
+
+	rows, err := r.db.QueryContext(ctx, query, vectorStr, threshold, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query vector search: %w", err)
+	}
+	defer rows.Close()
+
+	var reviews []client.Review
+	for rows.Next() {
+		var review client.Review
+		var similarity float64
+		err := rows.Scan(
+			&review.ID, &review.HotelID, &review.ReviewerName, &review.Rating,
+			&review.Title, &review.Content, &review.LanguageCode, &review.ReviewDate,
+			&review.HelpfulVotes, &review.CreatedAt, &similarity,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan review: %w", err)
+		}
+		reviews = append(reviews, review)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating reviews: %w", err)
+	}
+
+	return reviews, nil
+}
+
+// GetReviewsNeedingEmbeddings returns review IDs that need embeddings generated
+func (r *HotelRepository) GetReviewsNeedingEmbeddings(ctx context.Context, limit int) ([]int, error) {
+	query := `
+		SELECT id FROM reviews 
+		WHERE embedding_status IN ('pending', 'failed')
+		AND content IS NOT NULL 
+		AND LENGTH(TRIM(content)) > 0
+		ORDER BY created_at ASC
+		LIMIT $1`
+
+	rows, err := r.db.QueryContext(ctx, query, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query reviews needing embeddings: %w", err)
+	}
+	defer rows.Close()
+
+	var reviewIDs []int
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("failed to scan review ID: %w", err)
+		}
+		reviewIDs = append(reviewIDs, id)
+	}
+
+	return reviewIDs, rows.Err()
 }
