@@ -27,7 +27,7 @@ func NewServer(repository database.Repository, cache cache.ReviewCache, apiKey s
 		repository:  repository,
 		cache:       cache,
 		apiKey:      apiKey,
-		rateLimiter: rate.NewLimiter(rate.Every(time.Minute/100), 10), // 100 per minute, burst of 10
+		rateLimiter: rate.NewLimiter(rate.Every(time.Minute/10_000), 100), // 10_000 per minute, burst of 100
 	}
 
 	mux := http.NewServeMux()
