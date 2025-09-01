@@ -125,6 +125,30 @@ See `openapi.yaml`.
 
 You can use: https://editor.swagger.io
 
+### Authentication
+
+The API uses Bearer token authentication. Set the `API_KEY` environment variable to enable authentication:
+
+```bash
+export API_KEY="your-secret-api-key"
+```
+
+Then include the API key in your requests:
+
+```bash
+curl -H "Authorization: Bearer your-secret-api-key" http://localhost:8080/api/v1/hotels
+```
+
+**Note**: The `/health` endpoint does not require authentication.
+
+### Rate Limiting
+
+The API implements rate limiting to prevent abuse using the official Go `golang.org/x/time/rate` package:
+- **Limit**: 100 requests per minute
+- **Burst**: 10 requests (allows short bursts)
+- **Response**: `429 Too Many Requests` when limit exceeded
+- **Implementation**: Uses Go's standard rate limiting library for reliability
+
 ## Tests
 
 ```

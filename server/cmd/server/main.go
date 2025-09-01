@@ -55,7 +55,9 @@ func main() {
 		log.Println("Redis cache connected successfully")
 	}
 
-	server := handlers.NewServer(repository, redisCache)
+	apiKey := os.Getenv("API_KEY")
+
+	server := handlers.NewServer(repository, redisCache, apiKey)
 
 	port := getEnvOrDefault("PORT", "8080")
 	addr := ":" + port

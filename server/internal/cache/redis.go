@@ -26,7 +26,13 @@ type RedisCache struct {
 
 func NewRedisCache(addr string) *RedisCache {
 	rdb := redis.NewClient(&redis.Options{
-		Addr: addr,
+		Addr:         addr,
+		PoolSize:     10,
+		MinIdleConns: 2,
+		MaxRetries:   3,
+		DialTimeout:  5 * time.Second,
+		ReadTimeout:  3 * time.Second,
+		WriteTimeout: 3 * time.Second,
 	})
 	return &RedisCache{client: rdb}
 }
