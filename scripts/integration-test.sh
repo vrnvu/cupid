@@ -278,6 +278,30 @@ function test_error_scenarios() {
   success "Error scenarios test passed!"
 }
 
+# Populate database with test data
+function populate_test_data() {
+  echo "Populating database with test data..."
+  
+  wait_for_service "$WIREMOCK_URL/__admin/mappings" "WireMock"
+  wait_for_service "$BASE_URL/health" "Server"
+  
+  # Populate hotel data for the main test hotel
+  echo "Syncing hotel 1641879..."
+  CUPID_SANDBOX_API=test-key CUPID_BASE_URL=http://localhost:8081 HOTEL_ID=1641879 ./bin/data-sync || true
+  
+  # Wait a moment for data to be processed
+  sleep 2
+  
+  # Verify the data was populated
+  local status_code
+  status_code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/v1/hotels/1641879")
+  if [ "$status_code" -eq 200 ]; then
+    success "Test data populated successfully"
+  else
+    warning "Test data population may have failed (status: $status_code)"
+  fi
+}
+
 # Run data sync test case
 function run_data_sync_case() {
   local case_id="$1"
@@ -287,9 +311,9 @@ function run_data_sync_case() {
   echo "----- data-sync case: ${case_id} -----"
   
   if [ "${ENV:-local}" = "local" ]; then
-    DB_HOST=localhost HOTEL_ID="$case_id" ./bin/data-sync || true
+    DB_HOST=localhost CUPID_SANDBOX_API=test-key CUPID_BASE_URL=http://localhost:8081 HOTEL_ID="$case_id" ./bin/data-sync || true
   else
-    HOTEL_ID="$case_id" ./bin/data-sync || true
+    CUPID_SANDBOX_API=test-key CUPID_BASE_URL=http://localhost:8081 HOTEL_ID="$case_id" ./bin/data-sync || true
   fi
   
   echo "Data sync case $case_id completed"
@@ -317,7 +341,16 @@ function test_batch_sync() {
   
   # Test batch sync with a small subset (just a few hotels)
   # We'll use a timeout to avoid running the full 100 hotels
-  timeout 30s CUPID_SANDBOX_API=test-key CUPID_BASE_URL=http://localhost:8081 ./bin/data-sync || true
+  if command -v timeout >/dev/null 2>&1; then
+    timeout 30s CUPID_SANDBOX_API=test-key CUPID_BASE_URL=http://localhost:8081 ./bin/data-sync || true
+  else
+    # Fallback for systems without timeout command (like macOS)
+    echo "Running batch sync without timeout (timeout command not available)"
+    CUPID_SANDBOX_API=test-key CUPID_BASE_URL=http://localhost:8081 ./bin/data-sync &
+    local sync_pid=$!
+    sleep 30
+    kill $sync_pid 2>/dev/null || true
+  fi
   
   echo "Batch sync test completed"
   
@@ -396,6 +429,15 @@ function main() {
   
   # Load environment configuration
   load_env_config
+  
+  # Build binaries if they don't exist
+  if [ ! -f "./bin/data-sync" ] || [ ! -f "./bin/server" ]; then
+    echo "Building binaries..."
+    make build
+  fi
+  
+  # Populate database with test data
+  populate_test_data
   
   # Run tests
   test_health_endpoint
